@@ -125,6 +125,33 @@ services:
       traefik.http.routers.supabase.middlewares: security-headers@file,rate-limit@file
       traefik.http.services.supabase.loadbalancer.server.port: 8000
 
+  # Supabase realtime (websocket) - route directly to the realtime service
+  supabase-realtime:
+    extends:
+      file: docker-compose.all-in-one.yml
+      service: supabase-realtime
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.realtime.rule: Host(`${REALTIME_HOSTNAME:-realtime.${BASE_DOMAIN}}`)
+      traefik.http.routers.realtime.entrypoints: websecure
+      traefik.http.routers.realtime.tls.certresolver: cf
+      traefik.http.routers.realtime.middlewares: security-headers@file,rate-limit@file
+      # Realtime uses websocket upgrades on HTTP; Traefik will forward Upgrade headers by default
+      traefik.http.services.realtime.loadbalancer.server.port: 4000
+
+  # Supabase Edge Functions (the Edge Runtime) - expose functions gateway
+  supabase-functions:
+    extends:
+      file: docker-compose.all-in-one.yml
+      service: supabase-edge-runtime
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.functions.rule: Host(`${FUNCTIONS_HOSTNAME:-functions.${BASE_DOMAIN}}`)
+      traefik.http.routers.functions.entrypoints: websecure
+      traefik.http.routers.functions.tls.certresolver: cf
+      traefik.http.routers.functions.middlewares: security-headers@file,rate-limit@file
+      traefik.http.services.functions.loadbalancer.server.port: 54321
+
   ollama-cpu:
     extends:
       file: docker-compose.all-in-one.yml

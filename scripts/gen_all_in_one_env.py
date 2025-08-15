@@ -15,7 +15,9 @@ TEMPLATE = ROOT / ".env.all-in-one.example"
 OUTPUT = ROOT / (sys.argv[1] if len(sys.argv) > 1 else ".env")
 
 # Keys we want stronger length for
-LONG_KEYS = {"JWT_SECRET", "SERVICE_ROLE_KEY", "ANON_KEY", "N8N_ENCRYPTION_KEY", "N8N_USER_MANAGEMENT_JWT_SECRET", "CLICKHOUSE_PASSWORD", "MINIO_ROOT_PASSWORD", "LANGFUSE_SALT", "ENCRYPTION_KEY", "NEXTAUTH_SECRET", "POSTGRES_PASSWORD"}
+LONG_KEYS = {"JWT_SECRET", "SERVICE_ROLE_KEY", "ANON_KEY", "N8N_ENCRYPTION_KEY", "N8N_USER_MANAGEMENT_JWT_SECRET", "CLICKHOUSE_PASSWORD", "MINIO_ROOT_PASSWORD", "LANGFUSE_SALT", "ENCRYPTION_KEY", "NEXTAUTH_SECRET", "POSTGRES_PASSWORD",
+             # Newly added keys we want long secrets for
+             "SUPABASE_DB_PASSWORD", "SECRET_KEY_BASE", "VAULT_ENC_KEY", "LOGFLARE_PUBLIC_ACCESS_TOKEN", "LOGFLARE_PRIVATE_ACCESS_TOKEN"}
 
 ALPHANUM = string.ascii_letters + string.digits
 SYMBOLS = "!@#$%^&*-_"  # safe for most env uses
@@ -48,7 +50,10 @@ def main():
             out_lines.append(line)
 
     if OUTPUT.exists():
-        backup = OUTPUT.with_suffix(OUTPUT.suffix + ".bak")
+        # create a timestamped backup instead of overwriting
+        from datetime import datetime
+        ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        backup = OUTPUT.with_name(f"{OUTPUT.name}.{ts}.bak")
         OUTPUT.replace(backup)
         print(f"Existing {OUTPUT.name} backed up to {backup.name}")
 

@@ -47,6 +47,9 @@ configure_env() {
     sed -i "s/opendiscourse.net/$DOMAIN/g" .env
     # Attempt secret randomization
     python3 scripts/gen_all_in_one_env.py || true
+  # Secure the generated .env
+  chmod 600 .env || true
+  log "Secured .env with chmod 600"
     log "Remember to set CLOUDFLARE_API_TOKEN inside .env before enabling Traefik with DNS challenge."
   fi
 }
