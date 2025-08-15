@@ -33,9 +33,13 @@ clone_repo() {
     git -C "$APP_DIR" fetch --all
     git -C "$APP_DIR" checkout "$BRANCH"
     git -C "$APP_DIR" pull --ff-only
+  # Ensure submodules are initialized and updated (so supabase init scripts are present)
+  git -C "$APP_DIR" submodule update --init --recursive || true
   else
     log "Cloning repo"
     git clone "$REPO" -b "$BRANCH" "$APP_DIR"
+  # Initialize submodules so repo contains all nested content
+  git -C "$APP_DIR" submodule update --init --recursive || true
   fi
 }
 
