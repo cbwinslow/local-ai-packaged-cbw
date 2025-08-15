@@ -1,0 +1,20 @@
+http:
+  middlewares:
+    security-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: no-referrer
+        customResponseHeaders:
+          X-XSS-Protection: "1; mode=block"
+          Permissions-Policy: "geolocation=(), microphone=(), camera=()"
+          Cross-Origin-Embedder-Policy: "require-corp"
+          Cross-Origin-Opener-Policy: "same-origin"
+          Cross-Origin-Resource-Policy: "same-origin"
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 50

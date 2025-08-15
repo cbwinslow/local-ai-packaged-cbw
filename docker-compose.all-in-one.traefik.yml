@@ -1,0 +1,153 @@
+# Traefik variant of all-in-one stack.
+# Uses hardened middlewares (security headers + rate limit) by default.
+# Supabase gateway (kong) remains internal; public routes are proxied via Traefik to each service.
+
+name: localai-all-traefik
+
+services:
+  traefik:
+    image: traefik:v3.0
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
+      - --certificatesresolvers.cf.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.cf.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.cf.acme.dnschallenge.provider=cloudflare
+      - --certificatesresolvers.cf.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53
+      - --log.level=INFO
+    ports:
+      - 80:80
+      - 443:443
+    environment:
+      CF_DNS_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
+      BASE_DOMAIN: ${BASE_DOMAIN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic/middlewares.yml:/etc/traefik/dynamic/middlewares.yml:ro
+      - traefik-letsencrypt:/letsencrypt
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.traefik.rule: Host(`${TRAEFIK_DASHBOARD_HOST:-traefik.${BASE_DOMAIN}}`)
+      traefik.http.routers.traefik.service: api@internal
+      traefik.http.routers.traefik.entrypoints: websecure
+      traefik.http.routers.traefik.tls.certresolver: cf
+      traefik.http.routers.traefik.middlewares: security-headers@file
+
+  # Example: n8n routed via Traefik
+  n8n:
+    extends:
+      file: docker-compose.all-in-one.yml
+      service: n8n
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.n8n.rule: Host(`${N8N_HOSTNAME:-n8n.${BASE_DOMAIN}}`)
+      traefik.http.routers.n8n.entrypoints: websecure
+      traefik.http.routers.n8n.tls.certresolver: cf
+      traefik.http.routers.n8n.middlewares: security-headers@file,rate-limit@file
+      traefik.http.services.n8n.loadbalancer.server.port: 5678
+
+  flowise:
+    extends:
+      file: docker-compose.all-in-one.yml
+      service: flowise
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.flowise.rule: Host(`${FLOWISE_HOSTNAME:-flowise.${BASE_DOMAIN}}`)
+      traefik.http.routers.flowise.entrypoints: websecure
+      traefik.http.routers.flowise.tls.certresolver: cf
+      traefik.http.routers.flowise.middlewares: security-headers@file,rate-limit@file
+      traefik.http.services.flowise.loadbalancer.server.port: 3001
+
+  open-webui:
+    extends:
+      file: docker-compose.all-in-one.yml
+      service: open-webui
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.openwebui.rule: Host(`${WEBUI_HOSTNAME:-webui.${BASE_DOMAIN}}`)
+      traefik.http.routers.openwebui.entrypoints: websecure
+      traefik.http.routers.openwebui.tls.certresolver: cf
+      traefik.http.routers.openwebui.middlewares: security-headers@file,rate-limit@file
+      traefik.http.services.openwebui.loadbalancer.server.port: 8080
+
+  portal:
+    extends:
+      file: docker-compose.all-in-one.yml
+      service: portal
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.portal.rule: Host(`${PORTAL_HOSTNAME:-portal.${BASE_DOMAIN}}`)
+      traefik.http.routers.portal.entrypoints: websecure
+      traefik.http.routers.portal.tls.certresolver: cf
+      traefik.http.routers.portal.middlewares: security-headers@file,rate-limit@file
+      traefik.http.services.portal.loadbalancer.server.port: 8085
+
+  searxng:
+    extends:
+      file: docker-compose.all-in-one.yml
+      service: searxng
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.searxng.rule: Host(`${SEARXNG_HOSTNAME:-searxng.${BASE_DOMAIN}}`)
+      traefik.http.routers.searxng.entrypoints: websecure
+      traefik.http.routers.searxng.tls.certresolver: cf
+      traefik.http.routers.searxng.middlewares: security-headers@file,rate-limit@file
+      traefik.http.services.searxng.loadbalancer.server.port: 8080
+
+  langfuse-web:
+    extends:
+      file: docker-compose.all-in-one.yml
+      service: langfuse-web
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.langfuse.rule: Host(`${LANGFUSE_HOSTNAME:-langfuse.${BASE_DOMAIN}}`)
+      traefik.http.routers.langfuse.entrypoints: websecure
+      traefik.http.routers.langfuse.tls.certresolver: cf
+      traefik.http.routers.langfuse.middlewares: security-headers@file,rate-limit@file
+      traefik.http.services.langfuse.loadbalancer.server.port: 3000
+
+  supabase-kong:
+    extends:
+      file: docker-compose.all-in-one.yml
+      service: supabase-kong
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.supabase.rule: Host(`${SUPABASE_HOSTNAME:-supabase.${BASE_DOMAIN}}`)
+      traefik.http.routers.supabase.entrypoints: websecure
+      traefik.http.routers.supabase.tls.certresolver: cf
+      traefik.http.routers.supabase.middlewares: security-headers@file,rate-limit@file
+      traefik.http.services.supabase.loadbalancer.server.port: 8000
+
+  ollama-cpu:
+    extends:
+      file: docker-compose.all-in-one.yml
+      service: ollama-cpu
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.ollama.rule: Host(`${OLLAMA_HOSTNAME:-ollama.${BASE_DOMAIN}}`)
+      traefik.http.routers.ollama.entrypoints: websecure
+      traefik.http.routers.ollama.tls.certresolver: cf
+      traefik.http.routers.ollama.middlewares: security-headers@file,rate-limit@file
+      traefik.http.services.ollama.loadbalancer.server.port: 11434
+
+  neo4j:
+    extends:
+      file: docker-compose.all-in-one.yml
+      service: neo4j
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.neo4j.rule: Host(`${NEO4J_HOSTNAME:-neo4j.${BASE_DOMAIN}}`)
+      traefik.http.routers.neo4j.entrypoints: websecure
+      traefik.http.routers.neo4j.tls.certresolver: cf
+      traefik.http.routers.neo4j.middlewares: security-headers@file,rate-limit@file
+      traefik.http.services.neo4j.loadbalancer.server.port: 7474
+
+volumes:
+  traefik-letsencrypt:

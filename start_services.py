@@ -13,7 +13,7 @@ import shutil
 import time
 import argparse
 import platform
-import sys
+import urllib.request
 
 def run_command(cmd, cwd=None):
     """Run a shell command and print it."""
@@ -62,6 +62,38 @@ def start_supabase(environment=None):
         cmd.extend(["-f", "docker-compose.override.public.supabase.yml"])
     cmd.extend(["up", "-d"])
     run_command(cmd)
+
+
+def http_get(url, timeout=3):
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            return r.getcode()
+    except Exception:
+        return None
+
+
+def wait_for_supabase(timeout=180):
+    print("Waiting for Supabase (auth, rest) to become ready...")
+    start = time.time()
+    targets = {
+        "auth": "http://localhost:9999/health",
+        "rest": "http://localhost:8000/rest/v1/"
+    }
+    ready = set()
+    while time.time() - start < timeout:
+        for name, url in targets.items():
+            if name in ready:
+                continue
+            code = http_get(url)
+            if code and code < 600:
+                print(f"  {name} up (HTTP {code})")
+                ready.add(name)
+        if len(ready) == len(targets):
+            print("Supabase core endpoints responding.")
+            return True
+        time.sleep(3)
+    print("Timeout waiting for Supabase; proceeding anyway.")
+    return False
 
 def start_local_ai(profile=None, environment=None):
     """Start the local AI services (using its compose file)."""
@@ -227,21 +259,11 @@ def main():
 
     clone_supabase_repo()
     prepare_supabase_env()
-    
-    # Generate SearXNG secret key and check docker-compose.yml
     generate_searxng_secret_key()
     check_and_fix_docker_compose_for_searxng()
-    
     stop_existing_containers(args.profile)
-    
-    # Start Supabase first
     start_supabase(args.environment)
-    
-    # Give Supabase some time to initialize
-    print("Waiting for Supabase to initialize...")
-    time.sleep(10)
-    
-    # Then start the local AI services
+    wait_for_supabase()
     start_local_ai(args.profile, args.environment)
 
 if __name__ == "__main__":

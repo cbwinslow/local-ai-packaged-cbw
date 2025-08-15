@@ -64,6 +64,15 @@ Before you begin, make sure you have the following software installed:
 - [Git/GitHub Desktop](https://desktop.github.com/) - For easy repository management
 - [Docker/Docker Desktop](https://www.docker.com/products/docker-desktop/) - Required to run all services
 
+### Access & Lockout Prevention
+
+If you're deploying to a remote host and just want to ensure you can always log back in with SSH (key + optional password fallback) without over-hardening early, read `SECURITY_BASELINE.md`. It outlines:
+- Creating a non-root sudo user with key + fallback password
+- Keeping password auth temporarily while validating keys
+- Minimal firewall + fail2ban setup (optional later)
+
+Skip advanced proxy hardening until functionality is stable.
+
 ## Installation
 
 Clone the repository and navigate to the project directory:
@@ -319,6 +328,84 @@ python start_services.py --profile <your-profile>
 Replace `<your-profile>` with one of: `cpu`, `gpu-nvidia`, `gpu-amd`, or `none`.
 
 Note: The `start_services.py` script itself does not update containers - it only restarts them or pulls them if you are downloading these containers for the first time. To get the latest versions, you must explicitly run the commands above.
+
+## Portal & Quickstart (New)
+
+To make the stack easier to explore without hunting for ports, a lightweight Portal service is now included. It renders an index page of all configured hostnames plus a masked view of a few critical secret env vars (only partial, never full secrets) – purely for verification.
+
+### Enabling the Portal
+
+1. (Option A) Add (or reuse) an explicit hostname for the portal in your `.env` (do NOT remove existing secrets):
+
+   ```bash
+   PORTAL_HOSTNAME=portal.yourdomain.com
+   ```
+2. (Option B) Use a base domain only. Set:
+
+   ```bash
+   BASE_DOMAIN=opendiscourse.net
+   ```
+
+   If `PORTAL_HOSTNAME` is unset the portal page will still be reachable via the derived host `portal.opendiscourse.net` (after you create the DNS record).
+
+3. Create DNS `A` records for each service you want (or a wildcard `*.opendiscourse.net` if supported) pointing to your server IP. Examples:
+   - `n8n.opendiscourse.net`
+   - `openwebui.opendiscourse.net`
+   - `flowise.opendiscourse.net`
+   - `supabase.opendiscourse.net`
+   - `portal.opendiscourse.net`
+
+4. (Optional) For local dev without a domain you can leave everything blank; Caddy will not issue TLS for raw `:port` style entries, but you can still reach the portal internally via `curl http://portal:8085`.
+
+When Caddy reloads, it imports `caddy-addon/portal.conf` and reverse proxies the portal.
+
+### Using the Portal
+
+Visit `https://portal.opendiscourse.net` (or your chosen host) to find quick links to:
+
+- n8n
+- Open WebUI
+- Flowise
+- Supabase Studio
+- Langfuse
+- Neo4j Browser
+- (Optional) Ollama API & SearXNG if hostnames provided
+
+### Quickstart Script
+
+For a first-time CPU, public deployment with minimal typing:
+```bash
+chmod +x quickstart_cpu_public.sh
+./quickstart_cpu_public.sh
+```
+What it does:
+
+- Generates a `.env` ONLY if one does not already exist (non‑destructive)
+- Invokes `start_services.py --profile cpu --environment public`
+- Prints portal URL hint
+
+If you already have a `.env`, it’s left untouched exactly as requested.
+
+### Supabase Feature Utilization Notes
+
+The compose setup includes all major Supabase components: Auth (GoTrue), PostgREST, Realtime, Storage, Edge Functions (functions container), Analytics (Logflare), Meta, Pooler (Supavisor), plus Postgres with `pgvector` enabled via `supabase/docker/volumes/db/init/10-pgvector.sql`.
+
+Recommended next steps to fully leverage them:
+1. Add Row Level Security (RLS) policies for every table you expose via PostgREST.
+2. Create vector indexes (HNSW or IVF) on `vector` columns for fast semantic search.
+3. Use the pooler hostname for high concurrency clients (reduce direct hits to Postgres).
+4. Store user-uploaded assets via the Storage API instead of ad‑hoc buckets elsewhere.
+5. Implement realtime subscriptions (e.g. for agent status streams) via the Realtime websocket endpoint.
+6. Ship structured logs/events into Logflare for analytics dashboards.
+7. Deploy Edge Functions (TypeScript) for lightweight serverless logic near your data.
+
+None of the above requires destroying or rotating your current `.env`; you can incrementally add policies, indexes, and functions.
+
+### Security Reminder
+
+The portal intentionally masks secrets. Still, if you ever turn this into a multi‑tenant or externally exposed admin surface, add basic auth or IP restrictions in Caddy.
+
+---
 
 ## Troubleshooting
 

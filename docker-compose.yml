@@ -160,6 +160,7 @@ services:
       - SEARXNG_HOSTNAME=${SEARXNG_HOSTNAME:-":8006"}
       - LANGFUSE_HOSTNAME=${LANGFUSE_HOSTNAME:-":8007"}
       - NEO4J_HOSTNAME=${NEO4J_HOSTNAME:-":8008"}
+      - PORTAL_HOSTNAME=${PORTAL_HOSTNAME:-":8009"}
       - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-internal}
     cap_drop:
       - ALL
@@ -358,6 +359,29 @@ services:
       options:
         max-size: "1m"
         max-file: "1"      
+
+  portal:
+    build: ./portal
+    image: localai-portal:latest
+    restart: unless-stopped
+    expose:
+      - 8085/tcp
+    environment:
+      - PORT=8085
+      - N8N_HOSTNAME=${N8N_HOSTNAME}
+      - WEBUI_HOSTNAME=${WEBUI_HOSTNAME}
+      - FLOWISE_HOSTNAME=${FLOWISE_HOSTNAME}
+      - SUPABASE_HOSTNAME=${SUPABASE_HOSTNAME}
+      - LANGFUSE_HOSTNAME=${LANGFUSE_HOSTNAME}
+      - OLLAMA_HOSTNAME=${OLLAMA_HOSTNAME}
+      - NEO4J_HOSTNAME=${NEO4J_HOSTNAME}
+      - SEARXNG_HOSTNAME=${SEARXNG_HOSTNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
+      - ANON_KEY=${ANON_KEY}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_USER_MANAGEMENT_JWT_SECRET=${N8N_USER_MANAGEMENT_JWT_SECRET}
 
   ollama-cpu:
     profiles: ["cpu"]

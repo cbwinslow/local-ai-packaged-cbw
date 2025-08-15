@@ -1,0 +1,17 @@
+[Unit]
+Description=Local AI Packaged Stack
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=notify
+WorkingDirectory=/opt/local-ai-packaged
+Environment=COMPOSE_FILE=docker-compose.all-in-one.yml:docker-compose.all-in-one.traefik.yml
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+ExecStop=/usr/bin/docker compose down
+Restart=on-failure
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

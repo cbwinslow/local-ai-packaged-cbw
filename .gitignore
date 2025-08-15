@@ -1,8 +1,36 @@
+# Environment & secrets
 .env
+.env.*.local
+supabase/docker/.env
+
+# Data / volumes (optional add if you don't want to commit generated data)
 volumes/
 shared/
-neo4j/
 shared-backup/
+neo4j/
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Node / pnpm artifacts
+node_modules/
+pnpm-debug.log*
+
+# OS cruft
+.DS_Store
+*.swp
+
+# Tests / env variants
 .env.test
+
+# SearXNG runtime generated settings
 searxng/settings.yml
 searxng/uwsgi*

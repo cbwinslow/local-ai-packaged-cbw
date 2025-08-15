@@ -1,0 +1,80 @@
+# Non-destructive proxy enhancements: adds caddy_ext and traefik via profiles
+# Usage examples:
+#   docker compose -p localai -f docker-compose.yml -f docker-compose.override.proxies.yml --profile cpu --profile caddy_ext up -d
+#   docker compose -p localai -f docker-compose.yml -f docker-compose.override.proxies.yml --profile cpu --profile traefik up -d
+
+services:
+  caddy_ext:
+    profiles: ["caddy_ext"]
+    build:
+      context: .
+      dockerfile: caddy-addon/Dockerfile.xcaddy
+    container_name: caddy-ext
+    restart: unless-stopped
+    ports:
+      - 80:80
+      - 443:443
+    environment:
+      - BASE_DOMAIN=${BASE_DOMAIN:-localhost}
+      - ACME_EMAIL=${ACME_EMAIL:-admin@localhost}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
+      - N8N_HOSTNAME=${N8N_HOSTNAME:-n8n.${BASE_DOMAIN:-localhost}}
+      - WEBUI_HOSTNAME=${WEBUI_HOSTNAME:-openwebui.${BASE_DOMAIN:-localhost}}
+      - FLOWISE_HOSTNAME=${FLOWISE_HOSTNAME:-flowise.${BASE_DOMAIN:-localhost}}
+      - OLLAMA_HOSTNAME=${OLLAMA_HOSTNAME:-ollama.${BASE_DOMAIN:-localhost}}
+      - SUPABASE_HOSTNAME=${SUPABASE_HOSTNAME:-supabase.${BASE_DOMAIN:-localhost}}
+      - SEARXNG_HOSTNAME=${SEARXNG_HOSTNAME:-searxng.${BASE_DOMAIN:-localhost}}
+      - LANGFUSE_HOSTNAME=${LANGFUSE_HOSTNAME:-langfuse.${BASE_DOMAIN:-localhost}}
+      - NEO4J_HOSTNAME=${NEO4J_HOSTNAME:-neo4j.${BASE_DOMAIN:-localhost}}
+      - PORTAL_HOSTNAME=${PORTAL_HOSTNAME:-portal.${BASE_DOMAIN:-localhost}}
+    volumes:
+      - ./caddy-addon/Caddyfile.ext:/etc/caddy/Caddyfile:ro
+      - ./caddy-addon:/etc/caddy/addons:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - n8n
+      - open-webui
+      - flowise
+      - portal
+
+  traefik:
+    profiles: ["traefik"]
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - 80:80
+      - 443:443
+    environment:
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
+      - ACME_EMAIL=${ACME_EMAIL:-admin@localhost}
+      - BASE_DOMAIN=${BASE_DOMAIN:-localhost}
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedByDefault=false
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.cf.acme.email=${ACME_EMAIL:-admin@localhost}
+      - --certificatesresolvers.cf.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.cf.acme.dnschallenge.provider=cloudflare
+      - --api.dashboard=true
+      - --log.level=INFO
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./traefik/letsencrypt:/letsencrypt
+    depends_on:
+      - n8n
+      - open-webui
+      - flowise
+      - portal
+
+# Labels added through an extension section to avoid editing original services
+x-proxy-labels: &proxy-labels
+  labels:
+    - traefik.enable=true
+
+# We cannot patch existing services here; user may copy labels into original compose if needed.
