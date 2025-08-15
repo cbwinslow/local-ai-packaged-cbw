@@ -10,6 +10,7 @@ SCRIPTS=(
   03_storage_smoke.sh
   04_function_invoke.sh
   05_realtime_ws_test.py
+  06_realtime_postgres_notify.py
 )
 
 failed=0
