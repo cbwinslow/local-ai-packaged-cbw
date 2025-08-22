@@ -26,7 +26,15 @@ if not API_TOKEN:
     print("CLOUDFLARE_API_TOKEN=your_token_here")
     sys.exit(1)
 
-ZONE_NAME = "opendiscourse.net"
+# Get zone name from command line argument or environment variable
+parser = argparse.ArgumentParser(description="Configure Cloudflare DNS records.")
+parser.add_argument("--zone-name", type=str, help="Cloudflare zone name (domain)")
+args = parser.parse_args()
+
+ZONE_NAME = args.zone_name or env_vars.get("CLOUDFLARE_ZONE_NAME")
+if not ZONE_NAME:
+    print("Error: Zone name not provided. Please specify with --zone-name or set CLOUDFLARE_ZONE_NAME in your .env file.")
+    sys.exit(1)
 BASE_URL = "https://api.cloudflare.com/client/v4"
 
 # Headers for API requests
