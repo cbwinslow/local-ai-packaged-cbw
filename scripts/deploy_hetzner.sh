@@ -50,7 +50,17 @@ clone_repo() {
     if git -C "$APP_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
       git -C "$APP_DIR" submodule update --init --recursive || true
     fi
+  if [[ -f "$APP_DIR/.gitmodules" ]]; then
+    git -C "$APP_DIR" submodule update --init --recursive || true
   fi
+else
+  log "Cloning repo"
+  git clone "$REPO" -b "$BRANCH" "$APP_DIR"
+  # Initialize submodules so repo contains all nested content
+  if [[ -f "$APP_DIR/.gitmodules" ]]; then
+    git -C "$APP_DIR" submodule update --init --recursive || true
+  fi
+fi
 }
 
 configure_env() {
