@@ -1,0 +1,37 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+
+  - name: PostgreSQL
+    type: postgres
+    url: ${SUPABASE_DB_HOST}:${SUPABASE_DB_PORT}
+    user: ${SUPABASE_DB_USER}
+    secureJsonData:
+      password: ${SUPABASE_DB_PASSWORD}
+    jsonData:
+      database: ${SUPABASE_DB_NAME}
+      sslmode: "require"
+    editable: false
+
+  - name: VectorDB
+    type: postgres  # Using PostgreSQL with pgvector
+    url: ${VECTOR_DB_HOST}:${VECTOR_DB_PORT}
+    user: ${VECTOR_DB_USER}
+    secureJsonData:
+      password: ${VECTOR_DB_PASSWORD}
+    jsonData:
+      database: ${VECTOR_DB_NAME}
+      sslmode: "require"
+    editable: false

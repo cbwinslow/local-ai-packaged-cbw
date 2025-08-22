@@ -1,0 +1,3 @@
+# Minimal (empty) dynamic config for Traefik - no security headers or rate limiting yet.
+http:
+  middlewares: {}

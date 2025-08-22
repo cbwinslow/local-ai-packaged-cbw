@@ -1,0 +1,81 @@
+{
+	# Optional global options
+	email {env.ACME_EMAIL}
+	# log {
+	# 	level INFO
+	# }
+}
+
+(handle_errors) {
+	@rate_limited expression {http.error.status_code} == 429
+	respond @rate_limited 429 {"error":"rate limit exceeded"}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Frame-Options DENY
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-XSS-Protection "1; mode=block"
+		Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Resource-Policy same-origin
+		Cross-Origin-Embedder-Policy require-corp
+	}
+}
+
+(rate_limiter) {
+	@limited {remote_ip}
+	rate_limit @limited 100r/m
+}
+
+# Portal
+{env.PORTAL_HOSTNAME} {
+	import security_headers
+	reverse_proxy portal:8085
+}
+
+# n8n
+{env.N8N_HOSTNAME} {
+	import security_headers
+	reverse_proxy n8n:5678
+}
+
+# Flowise
+{env.FLOWISE_HOSTNAME} {
+	import security_headers
+	reverse_proxy flowise:3000
+}
+
+# Open WebUI
+{env.WEBUI_HOSTNAME} {
+	import security_headers
+	reverse_proxy open-webui:8080
+}
+
+# SearXNG
+{env.SEARXNG_HOSTNAME} {
+	import security_headers
+	reverse_proxy searxng:8080
+}
+
+# Neo4j Browser
+{env.NEO4J_HOSTNAME} {
+	import security_headers
+	reverse_proxy neo4j:7474
+}
+
+# Langfuse (assuming frontend on 3000 through langfuse container if added)
+{env.LANGFUSE_HOSTNAME} {
+	import security_headers
+	@api path /api/*
+	reverse_proxy langfuse-frontend:3000
+}
+
+# Supabase Studio (if exposed) - adjust service name / port
+{env.SUPABASE_HOSTNAME} {
+	import security_headers
+	reverse_proxy kong:8000
+}

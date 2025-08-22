@@ -1,0 +1,65 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'political-analysis-platform'
+
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+
+scrape_configs:
+  # System & Infrastructure Metrics
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # Database Metrics
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    metrics_path: '/metrics'
+
+  - job_name: 'pgvector'
+    static_configs:
+      - targets: ['vector-db-exporter:9187']
+    metrics_path: '/metrics'
+
+  # Message Queue Metrics
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+    metrics_path: '/metrics'
+
+  # AI Service Metrics
+  - job_name: 'localai'
+    static_configs:
+      - targets: ['localai:8080']
+    metrics_path: '/metrics'
+
+  # Application Metrics
+  - job_name: 'app'
+    static_configs:
+      - targets: ['app:8000']
+    metrics_path: '/metrics'
+
+  # AI Agent Metrics
+  - job_name: 'ai-agents'
+    static_configs:
+      - targets: ['agent-metrics:9090']
+    metrics_path: '/metrics'
+
+  # User Analytics
+  - job_name: 'user-analytics'
+    static_configs:
+      - targets: ['analytics-service:9090']
+    metrics_path: '/metrics'
+
+  # Vector Database Metrics
+  - job_name: 'vector-store'
+    static_configs:
+      - targets: ['vector-store:9090']
+    metrics_path: '/metrics'

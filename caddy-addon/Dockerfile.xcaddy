@@ -1,0 +1,11 @@
+# Build extended Caddy with common security / utility plugins
+# To add plugins adjust the XCADDY_PLUGINS build arg
+FROM caddy:builder AS builder
+
+ARG XCADDY_PLUGINS="github.com/caddy-dns/cloudflare github.com/mholt/caddy-ratelimit"
+RUN xcaddy build \
+    --with github.com/caddy-dns/cloudflare \
+    --with github.com/mholt/caddy-ratelimit
+
+FROM caddy:latest
+COPY --from=builder /usr/bin/caddy /usr/bin/caddy
