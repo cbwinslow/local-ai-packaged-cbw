@@ -39,7 +39,17 @@ clone_repo() {
     log "Cloning repo"
     git clone "$REPO" -b "$BRANCH" "$APP_DIR"
   # Initialize submodules so repo contains all nested content
-  git -C "$APP_DIR" submodule update --init --recursive || true
+    # Ensure submodules are initialized and updated (so supabase init scripts are present)
+    if git -C "$APP_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      git -C "$APP_DIR" submodule update --init --recursive || true
+    fi
+  else
+    log "Cloning repo"
+    git clone "$REPO" -b "$BRANCH" "$APP_DIR"
+    # Initialize submodules so repo contains all nested content
+    if git -C "$APP_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      git -C "$APP_DIR" submodule update --init --recursive || true
+    fi
   fi
 }
 
