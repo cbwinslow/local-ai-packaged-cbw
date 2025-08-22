@@ -26,7 +26,20 @@ def gen_jwt_like(role: str) -> str:
         'service_role': 'eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLCAiaXNzIjogInN1cGFiYXNlLWxvY2FsIiwgImlhdCI6IDE2NDE3NjkyMDAsICJleHAiOiAxOTk5OTk5OTk5IH0'
     }
     signature = rand_hex(24)
-    return f"{header}.{bodies[role]}.{signature}"
+def gen_jwt_like(role: str, expiration_seconds: int = 86400) -> str:
+    header = {"alg": "HS256", "typ": "JWT"}
+    header_b64 = base64.urlsafe_b64encode(json.dumps(header, separators=(',', ':')).encode()).rstrip(b'=').decode()
+    iat = int(time.time())
+    exp = iat + expiration_seconds
+    body = {
+        "role": role if role != "service_role" else "service_role",
+        "iss": "supabase-local",
+        "iat": iat,
+        "exp": exp
+    }
+    body_b64 = base64.urlsafe_b64encode(json.dumps(body, separators=(',', ':')).encode()).rstrip(b'=').decode()
+    signature = rand_hex(24)
+    return f"{header_b64}.{body_b64}.{signature}"
 
 
 def build(args):
