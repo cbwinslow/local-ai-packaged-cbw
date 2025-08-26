@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Compatibility wrapper: support a top-level `include:` in docker-compose.yml by
+# translating it to multiple `-f` args for `docker compose`.
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+COMPOSE_FILE="$ROOT_DIR/docker-compose.yml"
+
+if [ ! -f "$COMPOSE_FILE" ]; then
+  # Fallback to normal docker compose behavior
+  exec docker compose "$@"
+fi
+
+files=("$COMPOSE_FILE")
+
+# Parse simple include: - ./path pattern (only top-level simple lists supported)
+includes=$(awk 'BEGIN{in_include=0} /^include:/ {in_include=1; next} in_include && /^\s*-\s*/ {gsub(/^\s*-\s*/, ""); print $0} in_include && !/^\s*-\s*/ {exit}' "$COMPOSE_FILE" || true)
+if [ -n "$includes" ]; then
+  while IFS= read -r inc; do
+    inc_trim="$(echo "$inc" | sed -e 's/^\s*//;s/\s*$//')"
+    # resolve relative paths
+    files+=("$ROOT_DIR/$inc_trim")
+  done <<< "$includes"
+fi
+
+# Build args
+args=()
+for f in "${files[@]}"; do
+  args+=("-f" "$f")
+done
+
+exec docker compose "${args[@]}" "$@"

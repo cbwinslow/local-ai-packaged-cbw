@@ -1,0 +1,15 @@
+http:
+  middlewares:
+    secure-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: no-referrer
+        browserXssFilter: true
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+    auth-basic:
+      basicAuth:
+        users:
+          - '${TRAEFIK_ADMIN_USER}:${TRAEFIK_ADMIN_PASSWORD_HASH}'

@@ -1,0 +1,15 @@
+sudo ./scripts/supa-container-bootstrap.sh \
+  CREATE_USER=true CBW_PUBKEY='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINIEs0Bgiq6JOaoYOUUcJgsgIs1MM0KqhwTF5W+Y1Hq3' SSH_PORT=22
+cd terraform/dns
+terraform init
+terraform apply -auto-approve \
+  -var 'dns_provider=cloudflare' \
+  -var 'zone=opendiscourse.net' \
+  -var 'ipv4=YOUR.SERVER.IPV4' \
+  -var 'cloudflare_api_token=YOUR_CF_TOKEN'
+./scripts/supa-container-htpasswd.sh admin
+# copy HASH output to DASH_PASS_HASH
+sudo DOMAIN=opendiscourse.net EMAIL=admin@opendiscourse.net \
+  DASH_USER=admin DASH_PASS_HASH='$2y$05$...' \
+  ./scripts/supa-container-deploy.sh
+make test

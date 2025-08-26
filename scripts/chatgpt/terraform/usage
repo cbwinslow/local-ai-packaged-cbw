@@ -1,0 +1,15 @@
+cd terraform/dns
+# Cloudflare
+terraform init
+terraform apply -auto-approve \
+  -var 'dns_provider=cloudflare' \
+  -var 'zone=opendiscourse.net' \
+  -var 'ipv4=YOUR.SERVER.IPV4' \
+  -var 'cloudflare_api_token=...'
+
+# or Hetzner DNS
+terraform apply -auto-approve \
+  -var 'dns_provider=hetzner' \
+  -var 'zone=opendiscourse.net' \
+  -var 'ipv4=YOUR.SERVER.IPV4' \
+  -var 'hetzner_dns_token=...'

@@ -1,0 +1,9 @@
+log:
+  level: INFO
+
+providers:
+  file:
+    directory: /dynamic
+    watch: true
+  docker:
+    exposedByDefault: false
