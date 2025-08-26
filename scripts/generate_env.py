@@ -8,6 +8,9 @@ If you already issued API keys to clients, preserve ANON_KEY & SERVICE_ROLE_KEY 
 """
 import argparse
 import secrets
+import base64
+import json
+import time
 
 
 def rand_hex(n_bytes: int) -> str:

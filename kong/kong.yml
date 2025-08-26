@@ -1,0 +1,19 @@
+_format_version: '3.0'
+_transform: true
+services:
+  - name: fastapi-svc
+    url: http://fastapi_app:8000
+    routes:
+      - name: fastapi-root
+        paths: ['/']
+        strip_path: false
+        hosts: ['api.${DOMAIN}']
+    plugins:
+      - name: correlation-id
+        config: { header_name: X-Request-ID, generator: uuid, echo_downstream: true }
+      - name: rate-limiting
+        config: { minute: 120, policy: local }
+      - name: request-transformer
+        config:
+          remove:
+            headers: [ 'Server', 'X-Powered-By' ]

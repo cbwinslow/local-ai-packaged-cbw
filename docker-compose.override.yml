@@ -1,0 +1,149 @@
+version: '3.9'
+services:
+  fastapi_app:
+    build: ./fastapi_app
+    restart: unless-stopped
+    environment:
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+    labels:
+      - 'traefik.enable=false'
+    depends_on: [ qdrant, localai ]
+
+  kong:
+    extends:
+      file: ./docker-compose.kong.yml
+      service: kong
+
+  localai:
+    image: quay.io/go-skynet/local-ai:latest
+    restart: unless-stopped
+    environment:
+      MODELS_PATH: /models
+      THREADS: 4
+      CONTEXT_SIZE: 4096
+    volumes:
+      - ./models:/models
+    labels:
+      - 'traefik.enable=false'
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.3
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    labels:
+      - 'traefik.enable=false'
+
+  neo4j:
+    image: neo4j:5-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: '${NEO4J_USER}/${NEO4J_PASSWORD}'
+    volumes:
+      - neo4j_data:/data
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.neo4j.rule=Host(`neo4j.${DOMAIN}`)'
+      - 'traefik.http.routers.neo4j.entrypoints=websecure'
+      - 'traefik.http.routers.neo4j.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.neo4j.middlewares=secure-headers@file,auth-basic@file'
+      - 'traefik.http.services.neo4j.loadbalancer.server.port=7474'
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: unless-stopped
+    environment:
+      OAUTH_PROVIDER: 'supabase'
+      SUPABASE_URL: '${SUPABASE_URL:-}'
+      SUPABASE_ANON_KEY: '${SUPABASE_ANON_KEY:-}'
+      OPENWEBUI_COOKIE_SECURE: 'true'
+    volumes:
+      - openwebui:/app/backend/data
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.openwebui.rule=Host(`openwebui.${DOMAIN}`)'
+      - 'traefik.http.routers.openwebui.entrypoints=websecure'
+      - 'traefik.http.routers.openwebui.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.openwebui.middlewares=secure-headers@file'
+
+  flowise:
+    image: flowiseai/flowise:latest
+    restart: unless-stopped
+    environment:
+      FLOWISE_USERNAME: '${FLOWISE_USERNAME}'
+      FLOWISE_PASSWORD: '${FLOWISE_PASSWORD}'
+    volumes:
+      - flowise_data:/root/.flowise
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.flowise.rule=Host(`flowise.${DOMAIN}`)'
+      - 'traefik.http.routers.flowise.entrypoints=websecure'
+      - 'traefik.http.routers.flowise.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.flowise.middlewares=secure-headers@file,auth-basic@file'
+      - 'traefik.http.services.flowise.loadbalancer.server.port=3000'
+
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: 'true'
+      N8N_BASIC_AUTH_USER: '${N8N_BASIC_AUTH_USER}'
+      N8N_BASIC_AUTH_PASSWORD: '${N8N_BASIC_AUTH_PASSWORD}'
+      N8N_HOST: 'n8n.${DOMAIN}'
+      N8N_PROTOCOL: 'https'
+    volumes:
+      - n8n_data:/home/node/.n8n
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.n8n.rule=Host(`n8n.${DOMAIN}`)'
+      - 'traefik.http.routers.n8n.entrypoints=websecure'
+      - 'traefik.http.routers.n8n.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.n8n.middlewares=secure-headers@file,auth-basic@file'
+      - 'traefik.http.services.n8n.loadbalancer.server.port=5678'
+
+  grafana:
+    image: grafana/grafana:10.4.9
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: '${GRAFANA_ADMIN_USER}'
+      GF_SECURITY_ADMIN_PASSWORD: '${GRAFANA_ADMIN_PASSWORD}'
+    volumes:
+      - grafana_data:/var/lib/grafana
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN}`)'
+      - 'traefik.http.routers.grafana.entrypoints=websecure'
+      - 'traefik.http.routers.grafana.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.grafana.middlewares=secure-headers@file,auth-basic@file'
+      - 'traefik.http.services.grafana.loadbalancer.server.port=3000'
+
+  loki:
+    image: grafana/loki:2.9.8
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    labels:
+      - 'traefik.enable=false'
+
+  promtail:
+    image: grafana/promtail:2.9.8
+    restart: unless-stopped
+    volumes:
+      - /var/log:/var/log:ro
+    command: -config.file=/etc/promtail/config.yml
+
+  graphite:
+    image: graphiteapp/graphite-statsd:1.1.10-5
+    restart: unless-stopped
+    volumes:
+      - graphite_data:/opt/graphite/storage
+    labels:
+      - 'traefik.enable=false'
+
+volumes:
+  qdrant_data: {}
+  neo4j_data: {}
+  grafana_data: {}
+  flowise_data: {}
+  n8n_data: {}
+  openwebui: {}
+  graphite_data: {}
