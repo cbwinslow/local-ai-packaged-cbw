@@ -243,32 +243,77 @@ def wait_for_neo4j(timeout=120):
     """Wait for Neo4j HTTP endpoint (default port 7474) to become available."""
     print("Waiting for Neo4j to become ready (HTTP 7474)...")
     start = time.time()
-    url = "http://localhost:7474/"
-    # Primary: try to hit the host localhost:7474 (works when compose publishes the port)
+    host_url = "http://localhost:7474/"
+
+    def check_host():
+        return http_get(host_url)
+
+    def find_neo4j_container():
+        try:
+            out = subprocess.check_output(["docker", "ps", "--filter", "name=neo4j", "--format", "{{.Names}}"], text=True)
+            names = [n.strip() for n in out.splitlines() if n.strip()]
+            return names[0] if names else None
+        except Exception:
+            return None
+
+    def check_inside_with_curl(cname):
+        try:
+            # Test whether curl exists in the container
+            rc = subprocess.call(["docker", "exec", cname, "sh", "-c", "command -v curl >/dev/null 2>&1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if rc == 0:
+                out = subprocess.check_output([
+                    "docker", "exec", cname, "sh", "-c",
+                    "curl -s -o /dev/null -w '%{http_code}' http://localhost:7474/ || true"
+                ], text=True).strip()
+                if out and out.isdigit() and int(out) != 0:
+                    return int(out)
+        except Exception:
+            pass
+        return None
+
+    def check_inside_with_python(cname):
+        try:
+            # Some minimal images include python; try a tiny python HTTP check inside
+            py_cmd = (
+                "python3 -c \"import http.client,sys; c=http.client.HTTPConnection('localhost',7474,timeout=3); c.request('GET','/'); r=c.getresponse(); print(r.status)\""
+            )
+            out = subprocess.check_output(["docker", "exec", cname, "sh", "-c", py_cmd], text=True, stderr=subprocess.DEVNULL).strip()
+            if out and out.isdigit():
+                return int(out)
+        except Exception:
+            pass
+        return None
+
+    def logs_indicate_ready(cname):
+        try:
+            logs = subprocess.check_output(["docker", "logs", "--tail", "500", cname], text=True, stderr=subprocess.DEVNULL)
+            markers = ["Bolt enabled", "Started", "Remote interface available", "Bolt connector enabled", "Started database", "Server started"]
+            for m in markers:
+                if m in logs:
+                    return True
+        except Exception:
+            pass
+        return False
+
     while time.time() - start < timeout:
-        code = http_get(url)
+        code = check_host()
         if code and code < 600:
             print(f"Neo4j up (HTTP {code})")
             return True
 
-        # If host check failed, try to reach the service from inside the container
-        try:
-            # Find the running neo4j container name (if any)
-            out = subprocess.check_output(["docker", "ps", "--filter", "name=neo4j", "--format", "{{.Names}}"], text=True)
-            container_names = [n.strip() for n in out.splitlines() if n.strip()]
-            if container_names:
-                cname = container_names[0]
-                # Use curl inside container to hit localhost:7474
-                exec_cmd = ["docker", "exec", cname, "sh", "-c", "curl -s -o /dev/null -w '%{http_code}' http://localhost:7474/ || true"]
-                try:
-                    inner = subprocess.check_output(exec_cmd, text=True).strip()
-                    if inner and inner.isdigit() and int(inner) < 600 and int(inner) != 0:
-                        print(f"Neo4j up inside container {cname} (HTTP {inner})")
-                        return True
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        cname = find_neo4j_container()
+        if cname:
+            inner = check_inside_with_curl(cname)
+            if inner and inner < 600:
+                print(f"Neo4j up inside container {cname} (HTTP {inner})")
+                return True
+            inner = check_inside_with_python(cname)
+            if inner and inner < 600:
+                print(f"Neo4j up inside container {cname} (HTTP {inner})")
+                return True
+            if logs_indicate_ready(cname):
+                print(f"Neo4j logs indicate service started inside container {cname}")
+                return True
 
         time.sleep(2)
 
