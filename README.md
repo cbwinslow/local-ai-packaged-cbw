@@ -432,6 +432,12 @@ Here are solutions to common issues you might encounter:
 
 - **Linux GPU Support**: If you're having trouble running Ollama with GPU support on Linux, follow the [Ollama Docker instructions](https://github.com/ollama/ollama/blob/main/docs/docker.md).
 
+## Project Documentation
+
+- [Agent System Overview](agents.md) - Architecture and component documentation
+- [Task Tracking](tasks.md) - Current project milestones and progress
+- [Security Baseline](SECURITY_BASELINE.md) - Infrastructure hardening guidelines
+
 ## 👓 Recommended reading
 
 n8n is full of useful content for getting started quickly with its AI concepts
