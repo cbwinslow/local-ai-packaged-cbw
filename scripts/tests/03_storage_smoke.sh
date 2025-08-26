@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Storage PUT/GET smoke test using curl
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 source "$ROOT/.env" || true
 
 if [[ -z "${SERVICE_ROLE_KEY:-}" || -z "${SUPABASE_HOSTNAME:-}" ]]; then

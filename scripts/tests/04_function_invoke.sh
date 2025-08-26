@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Invoke a simple edge function endpoint to verify Edge Runtime routing
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 source "$ROOT/.env" || true
 
 if [[ -z "${FUNCTIONS_HOSTNAME:-}" ]]; then

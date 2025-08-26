@@ -14,11 +14,11 @@ REQUIRED=(
 
 missing=0
 for k in "${REQUIRED[@]}"; do
-  if ! grep -q "^$k=" ../.env 2>/dev/null; then
+  if ! grep -q "^$k=" ../../.env 2>/dev/null; then
     echo "MISSING: $k (not present in .env)"
     missing=1
   else
-    v=$(grep "^$k=" ../.env | sed -E 's/^.*=(.*)$/\1/')
+    v=$(grep "^$k=" ../../.env | sed -E 's/^.*=(.*)$/\1/')
     if [[ -z "$v" || "$v" =~ change_me ]]; then
       echo "MISSING: $k (empty or placeholder)"
       missing=1
