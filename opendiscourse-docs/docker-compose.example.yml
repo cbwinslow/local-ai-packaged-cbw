@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-opendiscourse}
+      POSTGRES_USER: ${POSTGRES_USER:-opd_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports: ["6379:6379"]
+
+  neo4j:
+    image: neo4j:5
+    restart: unless-stopped
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-change_me}
+      - NEO4J_server_memory_pagecache_size=1G
+    ports: ["7474:7474", "7687:7687"]
+    volumes:
+      - neo4jdata:/data
+
+  litellm:
+    image: ghcr.io/berriai/litellm:latest
+    restart: unless-stopped
+    environment:
+      - LITELLM_LOG=info
+      - HOST=0.0.0.0
+      - PORT=4000
+      # Provider keys passed through env (.env)
+    ports: ["4000:4000"]
+
+  api:
+    image: python:3.11-slim
+    command: bash -lc "pip install 'fastapi[all]' 'pydantic' 'psycopg[binary]' redis neo4j-driver uvicorn && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    working_dir: /srv/app
+    volumes:
+      - ./examples/api:/srv/app
+    env_file: .env
+    depends_on: [postgres, redis, neo4j, litellm]
+    ports: ["8000:8000"]
+
+  web:
+    image: node:22
+    command: bash -lc "cd app && npm ci || npm i && npm run dev"
+    working_dir: /srv
+    volumes:
+      - ./examples/web:/srv/app
+    environment:
+      - NEXT_PUBLIC_API_BASE=http://localhost:8000
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+volumes:
+  pgdata: {}
+  neo4jdata: {}
