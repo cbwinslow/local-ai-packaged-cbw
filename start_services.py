@@ -19,16 +19,114 @@ import re
 import tempfile
 import yaml
 
-def run_command(cmd, cwd=None, env_override=None):
-    """Run a shell command and print it.
+def run_command(cmd, cwd=None, env_override=None, ignore_errors=False, timeout=None):
+    """Run a shell command with enhanced error handling.
 
-    env_override: dict of environment variables to add/override for this command.
+    Args:
+        cmd: Command list to execute
+        cwd: Working directory for the command
+        env_override: dict of environment variables to add/override for this command
+        ignore_errors: If True, don't raise exception on command failure
+        timeout: Command timeout in seconds
+    
+    Returns:
+        subprocess.CompletedProcess object
+    
+    Raises:
+        CommandExecutionError: If command fails and ignore_errors=False
     """
     print("Running:", " ".join(cmd))
     env = os.environ.copy()
     if env_override:
         env.update(env_override)
-    subprocess.run(cmd, cwd=cwd, check=True, env=env)
+    
+    try:
+        result = subprocess.run(
+            cmd, 
+            cwd=cwd, 
+            check=not ignore_errors, 
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout
+        )
+        
+        if result.returncode != 0 and not ignore_errors:
+            raise CommandExecutionError(
+                f"Command failed with exit code {result.returncode}",
+                cmd, result.returncode, result.stdout, result.stderr
+            )
+        
+        # Print output if command succeeded or if we're ignoring errors
+        if result.stdout:
+            print("STDOUT:", result.stdout)
+        if result.stderr and result.returncode == 0:
+            print("STDERR:", result.stderr)
+        
+        return result
+    
+    except subprocess.TimeoutExpired as e:
+        error_msg = f"Command timed out after {timeout} seconds: {' '.join(cmd)}"
+        print(f"ERROR: {error_msg}")
+        if not ignore_errors:
+            raise CommandExecutionError(error_msg, cmd, -1, "", "Timeout")
+        return None
+    except FileNotFoundError as e:
+        error_msg = f"Command not found: {cmd[0]}. Please ensure it's installed and in your PATH."
+        print(f"ERROR: {error_msg}")
+        if not ignore_errors:
+            raise CommandExecutionError(error_msg, cmd, -1, "", str(e))
+        return None
+    except Exception as e:
+        error_msg = f"Unexpected error running command: {e}"
+        print(f"ERROR: {error_msg}")
+        if not ignore_errors:
+            raise CommandExecutionError(error_msg, cmd, -1, "", str(e))
+        return None
+
+class CommandExecutionError(Exception):
+    """Custom exception for command execution failures."""
+    
+    def __init__(self, message, cmd, exit_code, stdout, stderr):
+        self.message = message
+        self.cmd = cmd
+        self.exit_code = exit_code
+        self.stdout = stdout
+        self.stderr = stderr
+        super().__init__(self.message)
+    
+    def __str__(self):
+        lines = [
+            f"Command execution failed: {' '.join(self.cmd)}",
+            f"Exit code: {self.exit_code}",
+            f"Error: {self.message}"
+        ]
+        
+        if self.stderr:
+            lines.append(f"STDERR: {self.stderr}")
+        if self.stdout:
+            lines.append(f"STDOUT: {self.stdout}")
+            
+        # Add troubleshooting suggestions
+        if "docker" in self.cmd[0].lower():
+            lines.extend([
+                "",
+                "Docker troubleshooting suggestions:",
+                "- Ensure Docker is running: sudo systemctl start docker",
+                "- Check Docker permissions: sudo usermod -aG docker $USER",
+                "- Try restarting Docker service",
+                "- Check available disk space: df -h"
+            ])
+        elif "git" in self.cmd[0].lower():
+            lines.extend([
+                "",
+                "Git troubleshooting suggestions:",
+                "- Check internet connectivity",
+                "- Verify repository URL and access permissions",
+                "- Check if git is installed: git --version"
+            ])
+        
+        return "\n".join(lines)
 
 def patch_supabase_compose():
     """Remove Supabase supavisor service to avoid missing image errors."""
@@ -52,45 +150,66 @@ def patch_supabase_compose():
 
 def clone_supabase_repo():
     """Clone the Supabase repository using sparse checkout if not already present."""
-    if not os.path.exists("supabase"):
-        print("Cloning the Supabase repository...")
-        run_command([
-            "git", "clone", "--filter=blob:none", "--no-checkout",
-            "https://github.com/supabase/supabase.git"
-        ])
-        os.chdir("supabase")
-        run_command(["git", "sparse-checkout", "init", "--cone"])
-        run_command(["git", "sparse-checkout", "set", "docker"])
-        run_command(["git", "checkout", "master"])
-        os.chdir("..")
-    else:
-        print("Supabase repository already exists, attempting to update (non-fatal)...")
-        try:
+    try:
+        if not os.path.exists("supabase"):
+            print("Cloning the Supabase repository...")
+            run_command([
+                "git", "clone", "--filter=blob:none", "--no-checkout",
+                "https://github.com/supabase/supabase.git"
+            ], timeout=300)  # 5 minute timeout for clone
+            
             os.chdir("supabase")
-            # Fetch all remotes and try to set a known branch
-            run_command(["git", "fetch", "--all"])
-            # Try to checkout master, fall back to main, otherwise leave as-is
             try:
-                run_command(["git", "checkout", "master"])
-            except subprocess.CalledProcessError:
-                try:
-                    run_command(["git", "checkout", "main"])
-                except subprocess.CalledProcessError:
-                    print("Could not checkout master or main; leaving current branch as-is")
-
-            # Try a pull but don't let it hard-fail the whole script
-            try:
-                run_command(["git", "pull"])
-            except subprocess.CalledProcessError as e:
-                print(f"Warning: git pull failed: {e}; continuing anyway")
-        except Exception as e:
-            print(f"Warning: failed to update supabase repo: {e}; continuing")
-        finally:
-            try:
+                run_command(["git", "sparse-checkout", "init", "--cone"])
+                run_command(["git", "sparse-checkout", "set", "docker"])
+                run_command(["git", "checkout", "master"], ignore_errors=True)
+                if not os.path.exists("docker"):
+                    # Try main branch if master didn't work
+                    run_command(["git", "checkout", "main"], ignore_errors=True)
+            finally:
                 os.chdir("..")
-            except Exception:
-                pass
-    patch_supabase_compose()
+        else:
+            print("Supabase repository already exists, attempting to update (non-fatal)...")
+            original_dir = os.getcwd()
+            try:
+                os.chdir("supabase")
+                # Fetch all remotes and try to set a known branch
+                run_command(["git", "fetch", "--all"], ignore_errors=True, timeout=120)
+                
+                # Try to checkout master, fall back to main, otherwise leave as-is
+                master_result = run_command(["git", "checkout", "master"], ignore_errors=True)
+                if master_result and master_result.returncode != 0:
+                    main_result = run_command(["git", "checkout", "main"], ignore_errors=True)
+                    if main_result and main_result.returncode != 0:
+                        print("Could not checkout master or main; leaving current branch as-is")
+
+                # Try a pull but don't let it hard-fail the whole script
+                run_command(["git", "pull"], ignore_errors=True, timeout=120)
+            except Exception as e:
+                print(f"Warning: failed to update supabase repo: {e}; continuing")
+            finally:
+                try:
+                    os.chdir(original_dir)
+                except Exception:
+                    pass
+        
+        # Verify the docker directory exists
+        if not os.path.exists("supabase/docker"):
+            raise Exception("Supabase docker directory not found after clone/update. This may indicate a repository structure change.")
+        
+        patch_supabase_compose()
+        
+    except CommandExecutionError as e:
+        print(f"Failed to setup Supabase repository: {e}")
+        print("\nTroubleshooting steps:")
+        print("1. Check internet connectivity")
+        print("2. Verify git is installed: git --version")
+        print("3. Try manual clone: git clone https://github.com/supabase/supabase.git")
+        print("4. Check if there are any firewall restrictions")
+        raise
+    except Exception as e:
+        print(f"Unexpected error setting up Supabase repository: {e}")
+        raise
 
 def prepare_supabase_env():
     """Ensure a usable .env exists in repo root and copy it into supabase/docker/.env.

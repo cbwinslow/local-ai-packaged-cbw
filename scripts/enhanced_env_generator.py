@@ -106,6 +106,11 @@ class CredentialValidator:
         return secrets.token_hex(length // 2)
     
     @classmethod
+    def generate_postgres_password(cls, length: int = 32) -> str:
+        """Generate a PostgreSQL-compatible password (alphanumeric only)."""
+        return cls.generate_secure_string(length, use_symbols=False)
+    
+    @classmethod
     def generate_jwt_like_token(cls, role: str, expiration_hours: int = 24) -> str:
         """Generate a JWT-like token with proper format."""
         # Header
@@ -152,14 +157,26 @@ class CredentialValidator:
         has_digit = any(c.isdigit() for c in credential)
         has_symbol = any(c in cls.SAFE_SYMBOLS for c in credential)
         
-        if not has_upper:
-            issues.append("Missing uppercase letters")
-        if not has_lower:
-            issues.append("Missing lowercase letters")
-        if not has_digit:
-            issues.append("Missing digits")
-        if not has_symbol and cred_type in ['password', 'encryption_key']:
-            issues.append("Missing special characters")
+        # Special handling for PostgreSQL passwords (alphanumeric only)
+        if cred_type == 'postgres_password':
+            if not has_upper:
+                issues.append("Missing uppercase letters")
+            if not has_lower:
+                issues.append("Missing lowercase letters")
+            if not has_digit:
+                issues.append("Missing digits")
+            # PostgreSQL passwords should NOT have symbols for compatibility
+            if has_symbol:
+                issues.append("PostgreSQL passwords should only contain letters and numbers")
+        else:
+            if not has_upper:
+                issues.append("Missing uppercase letters")
+            if not has_lower:
+                issues.append("Missing lowercase letters")
+            if not has_digit:
+                issues.append("Missing digits")
+            if not has_symbol and cred_type in ['password', 'encryption_key']:
+                issues.append("Missing special characters")
         
         # Check for common patterns
         if re.search(r'(.)\1{3,}', credential):
@@ -419,8 +436,8 @@ class EnhancedEnvGenerator:
             print_section("Database Configuration")
         
         # Generate secure database credentials
-        postgres_pass = self.validator.generate_secure_string(32, use_symbols=False)  # No symbols for DB
-        supabase_db_pass = self.validator.generate_secure_string(32, use_symbols=False)
+        postgres_pass = self.validator.generate_postgres_password(32)
+        supabase_db_pass = self.validator.generate_postgres_password(32)
         pooler_tenant_id = self.validator.generate_hex_string(24)
         
         self.generated_config.update({
@@ -459,13 +476,29 @@ class EnhancedEnvGenerator:
         if self.verbose:
             print_section("Service Configurations")
         
+        # Get JWT secret from generated config
+        jwt_secret = self.generated_config.get('JWT_SECRET', self.validator.generate_secure_string(64))
+        
         lines = [
+            "# Legacy/Compatibility Variables",
+            f"DOMAIN={self.base_domain}",  # Legacy compatibility
+            f"LETSENCRYPT_EMAIL={self.email}",  # Legacy compatibility  
+            f"SUPABASE_JWT_SECRET={jwt_secret}",  # Legacy compatibility
+            "",
             "# n8n Configuration",
             f"N8N_ENCRYPTION_KEY={self.validator.generate_hex_string(48)}",
             f"N8N_USER_MANAGEMENT_JWT_SECRET={self.validator.generate_hex_string(64)}",
+            f"N8N_BASIC_AUTH_USER=n8n",  # For test compatibility
+            f"N8N_BASIC_AUTH_PASSWORD={self.validator.generate_secure_string(24)}",
             "",
             "# Neo4j Configuration", 
-            f"NEO4J_AUTH=neo4j/{self.validator.generate_secure_string(24, use_symbols=False)}",
+            f"NEO4J_AUTH=neo4j/{self.validator.generate_postgres_password(24)}",
+            f"NEO4J_USER=neo4j",  # For test compatibility
+            f"NEO4J_PASSWORD={self.validator.generate_postgres_password(24)}",
+            "",
+            "# Grafana Configuration",
+            f"GRAFANA_ADMIN_USER=admin",  # For test compatibility
+            f"GRAFANA_ADMIN_PASSWORD={self.validator.generate_secure_string(24)}",
             "",
             "# ClickHouse & Analytics",
             f"CLICKHOUSE_PASSWORD={self.validator.generate_secure_string(32)}",
@@ -595,7 +628,14 @@ class EnhancedEnvGenerator:
         credential_issues = 0
         for key, value in self.generated_config.items():
             if 'password' in key.lower() or 'secret' in key.lower() or 'key' in key.lower():
-                cred_type = 'password' if 'password' in key.lower() else 'secret'
+                # Special handling for PostgreSQL passwords
+                if 'postgres' in key.lower() and 'password' in key.lower():
+                    cred_type = 'postgres_password'
+                elif 'password' in key.lower():
+                    cred_type = 'password'
+                else:
+                    cred_type = 'secret'
+                    
                 valid, issues = self.validator.validate_credential_strength(value, cred_type)
                 if not valid:
                     credential_issues += 1

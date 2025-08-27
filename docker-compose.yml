@@ -7,8 +7,9 @@ volumes:
   qdrant_storage:
   open-webui:
   flowise:
-  caddy-data:
-  caddy-config:
+  caddy-data:  # Keep for backward compatibility
+  caddy-config:  # Keep for backward compatibility
+  traefik-letsencrypt:  # New Traefik volume for SSL certificates
   valkey-data:
   langfuse_postgres_data:
   langfuse_clickhouse_data:
@@ -108,6 +109,13 @@ services:
     depends_on:
       n8n-import:
         condition: service_completed_successfully
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.n8n.rule: Host(`${N8N_HOSTNAME:-n8n.${BASE_DOMAIN:-localhost}}`)
+      traefik.http.routers.n8n.entrypoints: websecure
+      traefik.http.routers.n8n.tls.certresolver: letsencrypt
+      traefik.http.routers.n8n.middlewares: security-headers@file
+      traefik.http.services.n8n.loadbalancer.server.port: 5678
 
   qdrant:
     image: qdrant/qdrant
@@ -134,43 +142,101 @@ services:
         - NEO4J_AUTH=${NEO4J_AUTH:-"neo4j/your_password"}
     restart: always      
 
-  caddy:
-    container_name: caddy
-    image: docker.io/library/caddy:2-alpine
+  # DEPRECATED: Caddy proxy - Traefik is now the default
+  # To enable Caddy (not recommended), uncomment and set profile to caddy-legacy
+  # caddy:
+  #   container_name: caddy
+  #   image: docker.io/library/caddy:2-alpine
+  #   restart: unless-stopped
+  #   ports:
+  #     - 80:80/tcp
+  #     - 443:443/tcp
+  #   expose:
+  #     - 2019/tcp
+  #     - 443/tcp
+  #     - 443/udp
+  #     - 80/tcp
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - ./caddy-addon:/etc/caddy/addons:ro      
+  #     - caddy-data:/data:rw
+  #     - caddy-config:/config:rw
+  #   environment:
+  #     - N8N_HOSTNAME=${N8N_HOSTNAME:-":8001"}
+  #     - WEBUI_HOSTNAME=${WEBUI_HOSTNAME:-":8002"}
+  #     - FLOWISE_HOSTNAME=${FLOWISE_HOSTNAME:-":8003"}
+  #     - OLLAMA_HOSTNAME=${OLLAMA_HOSTNAME:-":8004"}
+  #     - SUPABASE_HOSTNAME=${SUPABASE_HOSTNAME:-":8005"}
+  #     - SEARXNG_HOSTNAME=${SEARXNG_HOSTNAME:-":8006"}
+  #     - LANGFUSE_HOSTNAME=${LANGFUSE_HOSTNAME:-":8007"}
+  #     - NEO4J_HOSTNAME=${NEO4J_HOSTNAME:-":8008"}
+  #     - PORTAL_HOSTNAME=${PORTAL_HOSTNAME:-":8009"}
+  #     - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-internal}
+  #   cap_drop:
+  #     - ALL
+  #   cap_add:
+  #     - NET_BIND_SERVICE
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "1m"
+  #       max-file: "1"
+  #   profiles:
+  #     - caddy-legacy
+
+  # Traefik - Default Reverse Proxy and Load Balancer
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
     restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@${BASE_DOMAIN:-localhost}}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --log.level=INFO
+      - --api.dashboard=true
+      - --api.insecure=false
+      # Enable metrics and health check
+      - --metrics.prometheus=true
+      - --ping=true
     ports:
-      - 80:80/tcp
-      - 443:443/tcp
-    expose:
-      - 2019/tcp
-      - 443/tcp
-      - 443/udp
-      - 80/tcp
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy-addon:/etc/caddy/addons:ro      
-      - caddy-data:/data:rw
-      - caddy-config:/config:rw
+      - "80:80"
+      - "443:443"
     environment:
-      - N8N_HOSTNAME=${N8N_HOSTNAME:-":8001"}
-      - WEBUI_HOSTNAME=${WEBUI_HOSTNAME:-":8002"}
-      - FLOWISE_HOSTNAME=${FLOWISE_HOSTNAME:-":8003"}
-      - OLLAMA_HOSTNAME=${OLLAMA_HOSTNAME:-":8004"}
-      - SUPABASE_HOSTNAME=${SUPABASE_HOSTNAME:-":8005"}
-      - SEARXNG_HOSTNAME=${SEARXNG_HOSTNAME:-":8006"}
-      - LANGFUSE_HOSTNAME=${LANGFUSE_HOSTNAME:-":8007"}
-      - NEO4J_HOSTNAME=${NEO4J_HOSTNAME:-":8008"}
-      - PORTAL_HOSTNAME=${PORTAL_HOSTNAME:-":8009"}
-      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-internal}
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_BIND_SERVICE
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - traefik-letsencrypt:/letsencrypt
+    labels:
+      traefik.enable: "true"
+      # Dashboard
+      traefik.http.routers.traefik.rule: Host(`${TRAEFIK_DASHBOARD_HOST:-traefik.${BASE_DOMAIN:-localhost}}`)
+      traefik.http.routers.traefik.service: api@internal
+      traefik.http.routers.traefik.entrypoints: websecure
+      traefik.http.routers.traefik.tls.certresolver: letsencrypt
+      traefik.http.routers.traefik.middlewares: traefik-auth
+      # Basic auth for dashboard (admin:admin)
+      traefik.http.middlewares.traefik-auth.basicauth.users: admin:$$2y$$10$$7GCSx8O4.QqnJa0S9QjSge3VPBe5x5CqjEm0QqRrz/UKNP5G5j.A2
     logging:
       driver: "json-file"
       options:
-        max-size: "1m"
-        max-file: "1"
+        max-size: "5m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
 
   langfuse-worker:
     image: langfuse/langfuse-worker:3
