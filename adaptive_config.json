@@ -1,0 +1,46 @@
+{
+  "ports": {
+    "postgresql": 5432,
+    "kong": 8000,
+    "n8n": 5678,
+    "openwebui": 3000,
+    "flowise": 8080,
+    "qdrant": 6333,
+    "neo4j": 7474,
+    "ollama": 11434,
+    "traefik": 8080
+  },
+  "environment": {
+    "POSTGRES_HOST": "localhost",
+    "POSTGRES_PORT": "5432",
+    "POSTGRES_DB": "postgres",
+    "POSTGRES_USER": "postgres",
+    "KONG_URL": "http://localhost:8000",
+    "N8N_URL": "http://localhost:5678",
+    "OPENWEBUI_URL": "http://localhost:3000",
+    "FLOWISE_URL": "http://localhost:8080"
+  },
+  "oauth": {},
+  "services": {
+    "nginx": {
+      "name": "nginx",
+      "port": 80,
+      "protocol": "http",
+      "health_endpoint": "",
+      "pid": null,
+      "version": null,
+      "compatible": false,
+      "can_reuse": false
+    },
+    "apache": {
+      "name": "apache",
+      "port": 80,
+      "protocol": "http",
+      "health_endpoint": "",
+      "pid": null,
+      "version": null,
+      "compatible": false,
+      "can_reuse": false
+    }
+  }
+}
