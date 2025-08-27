@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Validate docker compose merge and report problems
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 echo "Running docker compose config validation..."
