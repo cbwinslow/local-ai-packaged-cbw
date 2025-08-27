@@ -1,7 +1,7 @@
 # Environment & secrets
-.env
 .env.*.local
 supabase/docker/.env
+supabase/
 
 # Data / volumes (optional add if you don't want to commit generated data)
 volumes/

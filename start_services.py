@@ -17,6 +17,7 @@ import urllib.request
 import sys
 import re
 import tempfile
+import yaml
 
 def run_command(cmd, cwd=None, env_override=None):
     """Run a shell command and print it.
@@ -28,6 +29,26 @@ def run_command(cmd, cwd=None, env_override=None):
     if env_override:
         env.update(env_override)
     subprocess.run(cmd, cwd=cwd, check=True, env=env)
+
+def patch_supabase_compose():
+    """Remove Supabase supavisor service to avoid missing image errors."""
+    compose_file = os.path.join("supabase", "docker", "docker-compose.yml")
+    if not os.path.exists(compose_file):
+        return
+    try:
+        with open(compose_file, "r") as f:
+            data = yaml.safe_load(f) or {}
+        services = data.get("services", {})
+        removed = False
+        for svc in ["supabase-pooler", "supavisor"]:
+            if services.pop(svc, None) is not None:
+                removed = True
+        if removed:
+            with open(compose_file, "w") as f:
+                yaml.safe_dump(data, f, sort_keys=False)
+            print("Removed Supabase supavisor service from docker-compose.yml")
+    except Exception as e:
+        print(f"Warning: unable to patch Supabase compose file: {e}")
 
 def clone_supabase_repo():
     """Clone the Supabase repository using sparse checkout if not already present."""
@@ -69,6 +90,7 @@ def clone_supabase_repo():
                 os.chdir("..")
             except Exception:
                 pass
+    patch_supabase_compose()
 
 def prepare_supabase_env():
     """Ensure a usable .env exists in repo root and copy it into supabase/docker/.env.

@@ -307,33 +307,6 @@ services:
       LOGFLARE_PUBLIC_ACCESS_TOKEN: ${LOGFLARE_PUBLIC_ACCESS_TOKEN:-logflare_public}
     command: ["--config", "/etc/vector/vector.yml"]
     networks: [backend]
-
-  # Supabase Supavisor (connection pooler)
-  supabase-pooler:
-    image: supabase/supavisor:2.5.7
-    restart: unless-stopped
-    expose: ["5432", "6543"]
-    volumes:
-      - ./supabase/docker/volumes/pooler/pooler.exs:/etc/pooler/pooler.exs:ro,z
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-postgres}
-      POSTGRES_PASSWORD: ${SUPABASE_DB_PASSWORD:-${POSTGRES_PASSWORD}}
-      DATABASE_URL: ecto://supabase_admin:${SUPABASE_DB_PASSWORD:-${POSTGRES_PASSWORD}}@supabase-db:5432/_supabase
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
-      VAULT_ENC_KEY: ${VAULT_ENC_KEY:-vault_enc_key}
-      API_JWT_SECRET: ${JWT_SECRET}
-      METRICS_JWT_SECRET: ${JWT_SECRET}
-      REGION: local
-      POOLER_TENANT_ID: local
-      POOLER_DEFAULT_POOL_SIZE: 20
-      POOLER_MAX_CLIENT_CONN: 100
-      POOLER_POOL_MODE: transaction
-      DB_POOL_SIZE: 20
-    depends_on:
-      - supabase-db
-      - supabase-analytics
-    networks: [backend]
-
   # Langfuse subset
   langfuse-clickhouse:
     image: clickhouse/clickhouse-server
