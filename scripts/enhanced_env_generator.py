@@ -476,13 +476,29 @@ class EnhancedEnvGenerator:
         if self.verbose:
             print_section("Service Configurations")
         
+        # Get JWT secret from generated config
+        jwt_secret = self.generated_config.get('JWT_SECRET', self.validator.generate_secure_string(64))
+        
         lines = [
+            "# Legacy/Compatibility Variables",
+            f"DOMAIN={self.base_domain}",  # Legacy compatibility
+            f"LETSENCRYPT_EMAIL={self.email}",  # Legacy compatibility  
+            f"SUPABASE_JWT_SECRET={jwt_secret}",  # Legacy compatibility
+            "",
             "# n8n Configuration",
             f"N8N_ENCRYPTION_KEY={self.validator.generate_hex_string(48)}",
             f"N8N_USER_MANAGEMENT_JWT_SECRET={self.validator.generate_hex_string(64)}",
+            f"N8N_BASIC_AUTH_USER=n8n",  # For test compatibility
+            f"N8N_BASIC_AUTH_PASSWORD={self.validator.generate_secure_string(24)}",
             "",
             "# Neo4j Configuration", 
-            f"NEO4J_AUTH=neo4j/{self.validator.generate_secure_string(24, use_symbols=False)}",
+            f"NEO4J_AUTH=neo4j/{self.validator.generate_postgres_password(24)}",
+            f"NEO4J_USER=neo4j",  # For test compatibility
+            f"NEO4J_PASSWORD={self.validator.generate_postgres_password(24)}",
+            "",
+            "# Grafana Configuration",
+            f"GRAFANA_ADMIN_USER=admin",  # For test compatibility
+            f"GRAFANA_ADMIN_PASSWORD={self.validator.generate_secure_string(24)}",
             "",
             "# ClickHouse & Analytics",
             f"CLICKHOUSE_PASSWORD={self.validator.generate_secure_string(32)}",
