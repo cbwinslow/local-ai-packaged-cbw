@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-08-27 04:17:08",
+  "timestamp": "2025-08-27 04:18:49",
   "configuration": {
     "repo_root": ".",
     "deployment_type": "local",
@@ -13,7 +13,7 @@
     "failed": 1,
     "warnings": 1,
     "skipped": 0,
-    "total_duration": 5.952516078948975,
+    "total_duration": 5.526507139205933,
     "success_rate": 0.8
   },
   "results_by_phase": {
@@ -21,7 +21,7 @@
       {
         "name": "System Requirements",
         "result": "passed",
-        "duration": 0.01325845718383789,
+        "duration": 0.01339578628540039,
         "message": "All system requirements met",
         "details": {
           "docker": true,
@@ -32,21 +32,21 @@
       {
         "name": "Environment Configuration",
         "result": "passed",
-        "duration": 0.05101943016052246,
+        "duration": 0.0500032901763916,
         "message": "Environment configured successfully",
         "details": {
-          "stdout": "\u001b[1m\u001b[96m\n============================================================\u001b[0m\n\u001b[1m\u001b[96m Enhanced Environment Generator\u001b[0m\n\u001b[1m\u001b[96m============================================================\u001b[0m\n\u001b[94m\u2139 Domain: localhost\u001b[0m\n\u001b[94m\u2139 Email: admin@localhost\u001b[0m\n\u001b[94m\u2139 Environment: local\u001b[0m\n\u001b[1m\u001b[94m\n--- Base Configuration ---\u001b[0m\n\u001b[1m\u001b[92m\u2713 Generated base configuration for localhost\u001b[0m\n\u001b[1m\u001b[94m\n--- Authentication Configuration ---\u001b[0m\n\u001b[1m\u001b[92m\u2713 Generated secure authentication credentials\u001b[0m\n\u001b[94m\u2139 JWT tokens are valid for development use\u001b[0m\n\u001b[1m\u001b[94m\n--- Database Configuration ---\u001b[0m\n\u001b[1m\u001b[92m\u2713 Generated database configuration\u001b[0m\n\u001b[94m\u2139 Using internal Docker network hostnames\u001b[0m\n\u001b[1m\u001b[94m\n--- Service Configurations ---\u001b[0m\n\u001b[1m\u001b[92m\u2713 Generated service configurations\u001b[0m\n\u001b[1m\u001b[94m\n--- Network Configuration ---\u001b[0m\n\u001b[94m\u2139 Checking for port conflicts...\u001b[0m\n\u001b[1m\u001b[92m\u2713 No port conflicts detected\u001b[0m\n\u001b[1m\u001b[94m\n--- Security Configuration ---\u001b[0m\n\u001b[1m\u001b[92m\u2713 Generated security configuration\u001b[0m\n\u001b[1m\u001b[93m\u26a0 Remember to update SMTP settings for email functionality\u001b[0m\n\u001b[1m\u001b[94m\n--- Configuration Validation ---\u001b[0m\n\u001b[1m\u001b[92m\u2713 Database configuration is valid\u001b[0m\n\u001b[1m\u001b[92m\u2713 Authentication configuration is valid\u001b[0m\n\u001b[1m\u001b[93m\u26a0 Credential strength issue for POSTGRES_PASSWORD:\u001b[0m\n\u001b[1m\u001b[93m\u26a0   - Missing special characters\u001b[0m\n\u001b[1m\u001b[93m\u26a0 Credential strength issue for SUPABASE_DB_PASSWORD:\u001b[0m\n\u001b[1m\u001b[93m\u26a0   - Missing special characters\u001b[0m\n\u001b[1m\u001b[93m\u26a0 \u26a0\ufe0f  Configuration has some issues that should be addressed\u001b[0m\n\u001b[1m\u001b[92m\u2713 Backed up existing .env to .env.20250827T041702Z.bak\u001b[0m\n\u001b[1m\u001b[96m\n============================================================\u001b[0m\n\u001b[1m\u001b[96m Generation Complete\u001b[0m\n\u001b[1m\u001b[96m============================================================\u001b[0m\n\u001b[1m\u001b[92m\u2713 Environment file written to .env\u001b[0m\n\u001b[1m\u001b[92m\u2713 File permissions set to 600 (owner read/write only)\u001b[0m\n\u001b[94m\u2139 Configuration contains 100 lines\u001b[0m\n\u001b[1m\u001b[94m\n--- Next Steps ---\u001b[0m\n\u001b[94m\u2139 1. Review the generated .env file\u001b[0m\n\u001b[94m\u2139 2. Update SMTP settings if email functionality is needed\u001b[0m\n\u001b[94m\u2139 3. Add Cloudflare API token if using external domain\u001b[0m\n\u001b[94m\u2139 4. Run comprehensive tests: ./scripts/tests/run_comprehensive_tests.sh\u001b[0m\n\u001b[94m\u2139 5. Start services: python start_services.py --profile cpu\u001b[0m\n",
+          "stdout": "\u001b[1m\u001b[96m\n============================================================\u001b[0m\n\u001b[1m\u001b[96m Enhanced Environment Generator\u001b[0m\n\u001b[1m\u001b[96m============================================================\u001b[0m\n\u001b[94m\u2139 Domain: localhost\u001b[0m\n\u001b[94m\u2139 Email: admin@localhost\u001b[0m\n\u001b[94m\u2139 Environment: local\u001b[0m\n\u001b[1m\u001b[94m\n--- Base Configuration ---\u001b[0m\n\u001b[1m\u001b[92m\u2713 Generated base configuration for localhost\u001b[0m\n\u001b[1m\u001b[94m\n--- Authentication Configuration ---\u001b[0m\n\u001b[1m\u001b[92m\u2713 Generated secure authentication credentials\u001b[0m\n\u001b[94m\u2139 JWT tokens are valid for development use\u001b[0m\n\u001b[1m\u001b[94m\n--- Database Configuration ---\u001b[0m\n\u001b[1m\u001b[92m\u2713 Generated database configuration\u001b[0m\n\u001b[94m\u2139 Using internal Docker network hostnames\u001b[0m\n\u001b[1m\u001b[94m\n--- Service Configurations ---\u001b[0m\n\u001b[1m\u001b[92m\u2713 Generated service configurations\u001b[0m\n\u001b[1m\u001b[94m\n--- Network Configuration ---\u001b[0m\n\u001b[94m\u2139 Checking for port conflicts...\u001b[0m\n\u001b[1m\u001b[92m\u2713 No port conflicts detected\u001b[0m\n\u001b[1m\u001b[94m\n--- Security Configuration ---\u001b[0m\n\u001b[1m\u001b[92m\u2713 Generated security configuration\u001b[0m\n\u001b[1m\u001b[93m\u26a0 Remember to update SMTP settings for email functionality\u001b[0m\n\u001b[1m\u001b[94m\n--- Configuration Validation ---\u001b[0m\n\u001b[1m\u001b[92m\u2713 Database configuration is valid\u001b[0m\n\u001b[1m\u001b[92m\u2713 Authentication configuration is valid\u001b[0m\n\u001b[1m\u001b[93m\u26a0 Credential strength issue for POSTGRES_PASSWORD:\u001b[0m\n\u001b[1m\u001b[93m\u26a0   - Missing special characters\u001b[0m\n\u001b[1m\u001b[93m\u26a0 Credential strength issue for SUPABASE_DB_PASSWORD:\u001b[0m\n\u001b[1m\u001b[93m\u26a0   - Missing special characters\u001b[0m\n\u001b[1m\u001b[93m\u26a0 \u26a0\ufe0f  Configuration has some issues that should be addressed\u001b[0m\n\u001b[1m\u001b[92m\u2713 Backed up existing .env to .env.20250827T041843Z.bak\u001b[0m\n\u001b[1m\u001b[96m\n============================================================\u001b[0m\n\u001b[1m\u001b[96m Generation Complete\u001b[0m\n\u001b[1m\u001b[96m============================================================\u001b[0m\n\u001b[1m\u001b[92m\u2713 Environment file written to .env\u001b[0m\n\u001b[1m\u001b[92m\u2713 File permissions set to 600 (owner read/write only)\u001b[0m\n\u001b[94m\u2139 Configuration contains 100 lines\u001b[0m\n\u001b[1m\u001b[94m\n--- Next Steps ---\u001b[0m\n\u001b[94m\u2139 1. Review the generated .env file\u001b[0m\n\u001b[94m\u2139 2. Update SMTP settings if email functionality is needed\u001b[0m\n\u001b[94m\u2139 3. Add Cloudflare API token if using external domain\u001b[0m\n\u001b[94m\u2139 4. Run comprehensive tests: ./scripts/tests/run_comprehensive_tests.sh\u001b[0m\n\u001b[94m\u2139 5. Start services: python start_services.py --profile cpu\u001b[0m\n",
           "stderr": ""
         }
       },
       {
         "name": "Repository Initialization",
         "result": "passed",
-        "duration": 1.0472967624664307,
+        "duration": 0.6300642490386963,
         "message": "Repositories initialized successfully",
         "details": {
-          "stdout": "Your branch is behind 'origin/master' by 1 commit, and can be fast-forwarded.\n  (use \"git pull\" to update your local branch)\nUpdating 7f0fee6541..8c54cb6bed\nFast-forward\n .../components/interfaces/Home/ProjectList/ProjectCard.tsx     |  7 +------\n .../interfaces/Home/ProjectList/ProjectCardStatus.tsx          | 10 ++++++----\n .../components/interfaces/Home/ProjectList/ProjectTableRow.tsx |  7 +------\n 3 files changed, 8 insertions(+), 16 deletions(-)\nSupabase repository already exists, attempting to update (non-fatal)...\nRunning: git fetch --all\nRunning: git checkout master\nRunning: git pull\nCopying .env in root to .env in supabase/docker...\nChecking SearXNG settings...\nSearXNG settings.yml already exists at searxng/settings.yml\nGenerating SearXNG secret key (Python-based, avoids sed)...\nNo 'ultrasecretkey' placeholder found in searxng/settings.yml; no change required.\nNo running SearXNG container found - assuming first run\nPreflight checks completed. Exiting without starting containers.\n",
-          "stderr": "From https://github.com/supabase/supabase\n   7f0fee6541..8c54cb6bed  master     -> origin/master\nAlready on 'master'\n"
+          "stdout": "Your branch is up to date with 'origin/master'.\nAlready up to date.\nSupabase repository already exists, attempting to update (non-fatal)...\nRunning: git fetch --all\nRunning: git checkout master\nRunning: git pull\nCopying .env in root to .env in supabase/docker...\nChecking SearXNG settings...\nSearXNG settings.yml already exists at searxng/settings.yml\nGenerating SearXNG secret key (Python-based, avoids sed)...\nNo 'ultrasecretkey' placeholder found in searxng/settings.yml; no change required.\nNo running SearXNG container found - assuming first run\nPreflight checks completed. Exiting without starting containers.\n",
+          "stderr": "Already on 'master'\n"
         }
       }
     ],
@@ -54,18 +54,18 @@
       {
         "name": "Security Validation",
         "result": "failed",
-        "duration": 1.523942232131958,
+        "duration": 1.5092732906341553,
         "message": "Critical security issues found",
         "details": {
           "exit_code": 1,
           "stdout": "\n\ud83d\udd12 Security Validation Complete\n\ud83d\udcca Total findings: 5\n\ud83d\udea8 Critical: 1\n\u2757 High: 2\n\u26a0\ufe0f  Medium: 1\n\u2139\ufe0f  Low: 1\n\n\ud83d\udda5\ufe0f  Bare Metal Compatibility: 9/15 components compatible\n",
-          "stderr": "2025-08-27 04:17:04,045 - INFO - \ud83d\udcca Generating security report...\n2025-08-27 04:17:04,045 - INFO - \ud83d\udd12 Validating environment security...\n2025-08-27 04:17:04,047 - INFO - \ud83c\udf10 Validating network security...\n2025-08-27 04:17:05,182 - INFO - \ud83d\uddc4\ufe0f  Validating database security...\n2025-08-27 04:17:05,182 - INFO - \ud83d\udc33 Validating container security...\n2025-08-27 04:17:05,184 - INFO - \ud83d\udda5\ufe0f  Validating bare metal compatibility...\n2025-08-27 04:17:05,277 - INFO - \ud83d\udcc4 Security report saved to security_report.json\n"
+          "stderr": "2025-08-27 04:18:44,820 - INFO - \ud83d\udcca Generating security report...\n2025-08-27 04:18:44,820 - INFO - \ud83d\udd12 Validating environment security...\n2025-08-27 04:18:44,823 - INFO - \ud83c\udf10 Validating network security...\n2025-08-27 04:18:45,945 - INFO - \ud83d\uddc4\ufe0f  Validating database security...\n2025-08-27 04:18:45,945 - INFO - \ud83d\udc33 Validating container security...\n2025-08-27 04:18:45,947 - INFO - \ud83d\udda5\ufe0f  Validating bare metal compatibility...\n2025-08-27 04:18:46,038 - INFO - \ud83d\udcc4 Security report saved to security_report.json\n"
         }
       },
       {
         "name": "Bare Metal Compatibility",
         "result": "passed",
-        "duration": 0.0002791881561279297,
+        "duration": 0.00024247169494628906,
         "message": "Bare metal compatibility: 9/15 components",
         "details": {
           "compatible_count": 9,
@@ -78,17 +78,17 @@
       {
         "name": "Adaptive Configuration",
         "result": "passed",
-        "duration": 1.4100258350372314,
+        "duration": 1.4273712635040283,
         "message": "Adaptive configuration completed",
         "details": {
           "stdout": "\ud83d\udd27 Adaptive Configuration Generated\n\ud83d\udccd Detected 2 existing services\n\ud83d\udeaa Configured 9 service ports\n\n\u2705 Configuration management completed successfully\n",
-          "stderr": "2025-08-27 04:17:05,560 - INFO - \u2699\ufe0f  Generating adaptive configuration...\n2025-08-27 04:17:05,560 - INFO - \ud83d\udd27 Resolving port conflicts...\n2025-08-27 04:17:05,560 - INFO - \ud83d\udd0d Detecting existing services...\n2025-08-27 04:17:05,843 - WARNING - \u26a0\ufe0f  Found incompatible nginx service on port 80\n2025-08-27 04:17:06,120 - WARNING - \u26a0\ufe0f  Found incompatible apache service on port 80\n2025-08-27 04:17:06,122 - INFO - \ud83d\udd0d Detecting existing services...\n2025-08-27 04:17:06,412 - WARNING - \u26a0\ufe0f  Found incompatible nginx service on port 80\n2025-08-27 04:17:06,683 - WARNING - \u26a0\ufe0f  Found incompatible apache service on port 80\n2025-08-27 04:17:06,684 - INFO - \ud83d\udcbe Configuration saved to adaptive_config.json\n2025-08-27 04:17:06,684 - INFO - \ud83d\udcdd Adaptive .env file generated: .env.adaptive\n"
+          "stderr": "2025-08-27 04:18:46,322 - INFO - \u2699\ufe0f  Generating adaptive configuration...\n2025-08-27 04:18:46,322 - INFO - \ud83d\udd27 Resolving port conflicts...\n2025-08-27 04:18:46,322 - INFO - \ud83d\udd0d Detecting existing services...\n2025-08-27 04:18:46,604 - WARNING - \u26a0\ufe0f  Found incompatible nginx service on port 80\n2025-08-27 04:18:46,872 - WARNING - \u26a0\ufe0f  Found incompatible apache service on port 80\n2025-08-27 04:18:46,874 - INFO - \ud83d\udd0d Detecting existing services...\n2025-08-27 04:18:47,167 - WARNING - \u26a0\ufe0f  Found incompatible nginx service on port 80\n2025-08-27 04:18:47,461 - WARNING - \u26a0\ufe0f  Found incompatible apache service on port 80\n2025-08-27 04:18:47,463 - INFO - \ud83d\udcbe Configuration saved to adaptive_config.json\n2025-08-27 04:18:47,463 - INFO - \ud83d\udcdd Adaptive .env file generated: .env.adaptive\n"
         }
       },
       {
         "name": "Service Discovery",
         "result": "passed",
-        "duration": 0.00018835067749023438,
+        "duration": 0.00017595291137695312,
         "message": "Service discovery completed - found 2 services",
         "details": {
           "services_detected": 2,
@@ -100,7 +100,7 @@
       {
         "name": "Inter-Service Communication",
         "result": "passed",
-        "duration": 0.32982325553894043,
+        "duration": 0.3308525085449219,
         "message": "Inter-service communication test completed",
         "details": {
           "exit_code": 1,
@@ -111,23 +111,23 @@
       {
         "name": "OAuth and User Management",
         "result": "passed",
-        "duration": 1.3598620891571045,
+        "duration": 1.3471150398254395,
         "message": "OAuth and user management test completed",
         "details": {
           "exit_code": 0,
           "stdout": "\ud83d\udd27 Adaptive Configuration Generated\n\ud83d\udccd Detected 2 existing services\n\ud83d\udeaa Configured 9 service ports\n\n\ud83d\udc64 Testing authentication flows...\n\n\u2705 Configuration management completed successfully\n",
-          "stderr": "2025-08-27 04:17:07,571 - WARNING - \u26a0\ufe0f  Found incompatible nginx service on port 80\n2025-08-27 04:17:07,840 - WARNING - \u26a0\ufe0f  Found incompatible apache service on port 80\n2025-08-27 04:17:08,106 - WARNING - \u26a0\ufe0f  Found incompatible nginx service on port 80\n2025-08-27 04:17:08,373 - WARNING - \u26a0\ufe0f  Found incompatible apache service on port 80\n2025-08-27 04:17:08,375 - WARNING - No ANON_KEY found, skipping Supabase auth tests\n"
+          "stderr": "2025-08-27 04:18:48,345 - WARNING - \u26a0\ufe0f  Found incompatible nginx service on port 80\n2025-08-27 04:18:48,607 - WARNING - \u26a0\ufe0f  Found incompatible apache service on port 80\n2025-08-27 04:18:48,883 - WARNING - \u26a0\ufe0f  Found incompatible nginx service on port 80\n2025-08-27 04:18:49,143 - WARNING - \u26a0\ufe0f  Found incompatible apache service on port 80\n2025-08-27 04:18:49,145 - WARNING - No ANON_KEY found, skipping Supabase auth tests\n"
         }
       },
       {
         "name": "Legacy Test Suite",
         "result": "warning",
-        "duration": 0.2154378890991211,
+        "duration": 0.21657800674438477,
         "message": "Legacy test suite completed",
         "details": {
           "exit_code": 1,
-          "stdout": "\u001b[0;32m[04:17:08]\u001b[0m Starting comprehensive test suite\n\u001b[0;32m[04:17:08]\u001b[0m Repository: /home/runner/work/local-ai-packaged-cbw/local-ai-packaged-cbw\n\u001b[0;32m[04:17:08]\u001b[0m Quick mode: true\n\u001b[0;32m[04:17:08]\u001b[0m Verbose: false\n\n\u001b[0;34m[INFO]\u001b[0m === Core Infrastructure Tests ===\n\n\u001b[0;32m[04:17:08]\u001b[0m Running test: Git repository\n\u001b[0;32m\u2713 PASS\u001b[0m: Git repository\n\n\u001b[0;32m[04:17:08]\u001b[0m Running test: Docker availability\n\u001b[0;32m\u2713 PASS\u001b[0m: Docker availability\n\n\u001b[0;32m[04:17:08]\u001b[0m Running test: Python dependencies\n\u001b[0;32m\u2713 PASS\u001b[0m: Python dependencies\n\n\u001b[0;32m[04:17:08]\u001b[0m Running test: Scripts executable\n\u001b[0;32m\u2713 PASS\u001b[0m: Scripts executable\n\u001b[0;34m[INFO]\u001b[0m === Configuration Tests ===\n\n\u001b[0;32m[04:17:08]\u001b[0m Running test: Environment setup\n\u001b[0;32m\u2713 PASS\u001b[0m: Environment setup\n\n\u001b[0;32m[04:17:08]\u001b[0m Running test: Environment variables\n",
-          "stderr": ".env: line 16: Xb: unbound variable\n.env: line 16: q: unbound variable\n"
+          "stdout": "\u001b[0;32m[04:18:49]\u001b[0m Starting comprehensive test suite\n\u001b[0;32m[04:18:49]\u001b[0m Repository: /home/runner/work/local-ai-packaged-cbw/local-ai-packaged-cbw\n\u001b[0;32m[04:18:49]\u001b[0m Quick mode: true\n\u001b[0;32m[04:18:49]\u001b[0m Verbose: false\n\n\u001b[0;34m[INFO]\u001b[0m === Core Infrastructure Tests ===\n\n\u001b[0;32m[04:18:49]\u001b[0m Running test: Git repository\n\u001b[0;32m\u2713 PASS\u001b[0m: Git repository\n\n\u001b[0;32m[04:18:49]\u001b[0m Running test: Docker availability\n\u001b[0;32m\u2713 PASS\u001b[0m: Docker availability\n\n\u001b[0;32m[04:18:49]\u001b[0m Running test: Python dependencies\n\u001b[0;32m\u2713 PASS\u001b[0m: Python dependencies\n\n\u001b[0;32m[04:18:49]\u001b[0m Running test: Scripts executable\n\u001b[0;32m\u2713 PASS\u001b[0m: Scripts executable\n\u001b[0;34m[INFO]\u001b[0m === Configuration Tests ===\n\n\u001b[0;32m[04:18:49]\u001b[0m Running test: Environment setup\n\u001b[0;32m\u2713 PASS\u001b[0m: Environment setup\n\n\u001b[0;32m[04:18:49]\u001b[0m Running test: Environment variables\n",
+          "stderr": ".env: line 20: ohl0xwUl: unbound variable\n"
         }
       }
     ]
