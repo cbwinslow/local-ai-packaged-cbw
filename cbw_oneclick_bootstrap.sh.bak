@@ -1,3 +1,8 @@
+# 0) backup the broken script
+cp cbw_oneclick_bootstrap.sh cbw_oneclick_bootstrap.sh.bak
+
+# 1) replace it with a clean copy
+tee cbw_oneclick_bootstrap.sh >/dev/null <<'BASH'
 #!/usr/bin/env bash
 #===============================================================================
 # Script Name  : cbw_oneclick_bootstrap.sh
@@ -458,3 +463,7 @@ if [[ $DO_DNS -eq 1 ]]; then
 fi
 
 log "done."
+BASH
+
+# 2) make it executable
+chmod +x cbw_oneclick_bootstrap.sh

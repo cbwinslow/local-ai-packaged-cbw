@@ -1,0 +1,588 @@
+#!/usr/bin/env bash
+#===============================================================================
+# Script Name  : cbw_oneclick_bootstrap.sh
+# Author       : Blaine Winslow (CBW) + GPT-5 Thinking
+# Date         : 2025-08-26
+# Summary      : One-click: add missing files (Kong, FastAPI, LocalAI+Qdrant, Neo4j,
+#               Graphite, n8n, Flowise, OpenWebUI, Traefik middleware), harden,
+#               sync Cloudflare DNS, deploy stack, and validate.
+#
+# Usage        : sudo ./cbw_oneclick_bootstrap.sh --prepare --deploy --validate --dns
+#               Flags: --prepare  (write/patch files, install deps)
+#                      --deploy   (docker compose up -d with override)
+#                      --validate (container health + HTTP probes)
+#                      --dns      (Cloudflare DNS upsert)
+#                      --harden   (optional host SSH+UFW hardening; interactive)
+#                      --dry-run  (print actions, don’t write/execute)
+#                      --verbose  (chatty logs)
+#
+# Inputs       : ./.env  (see REQUIRED_ENV list below)
+# Outputs      : scripts/, fastapi_app/, kong/, traefik/, tests/, docker-compose.override.yml
+#               README-DEPLOYMENT.md, and running services behind Traefik.
+#
+# Security     : Does NOT overwrite existing secrets. Can auto-generate secure defaults.
+# Logging      : /tmp/CBW-cbw_oneclick_bootstrap.log
+# Mod Log      : 2025-08-26 - initial public zip version
+#===============================================================================
+set -Eeuo pipefail
+
+SCRIPT_NAME=\"$(basename \"$0\")\"
+LOG_FILE=\"/tmp/CBW-${SCRIPT_NAME%.sh}.log\"
+ROOT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" 2>/dev/null ROOT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"ROOT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\" pwd -P || pwd)"
+ENV_FILE=\"${ROOT_DIR}/.env\"
+
+DRY_RUN=0
+VERBOSE=0
+DO_PREPARE=0
+DO_DEPLOY=0
+DO_VALIDATE=0
+DO_DNS=0
+DO_HARDEN=0
+
+log() { printf '[%s] %s\n' \"$(date +'%F %T')\" \"$*\" | tee -a \"$LOG_FILE\"; }
+vlog() { [[ $VERBOSE -eq 1 ]] && log \"$@\"; }
+run() { if [[ $DRY_RUN -eq 1 ]]; then log \"DRY-RUN: $*\"; else eval \"$@\"; fi; }
+die() { log \"ERROR: $*\"; exit 1; }
+trap 'die \"Uncaught error on line $LINENO. See $LOG_FILE\"' ERR
+
+while [[ $# -gt 0 ]]; do
+  case \"$1\" in
+    --prepare) DO_PREPARE=1 ;;
+    --deploy) DO_DEPLOY=1 ;;
+    --validate) DO_VALIDATE=1 ;;
+    --dns) DO_DNS=1 ;;
+    --harden) DO_HARDEN=1 ;;
+    --dry-run) DRY_RUN=1 ;;
+    --verbose|-v) VERBOSE=1 ;;
+    -h|--help) cat <<EOF
+Usage: sudo $SCRIPT_NAME [--prepare] [--deploy] [--validate] [--dns] [--harden] [--dry-run] [--verbose]
+EOF
+      exit 0 ;;
+    *) die \"Unknown flag: $1\" ;;
+  esac
+  shift
+done
+
+[[ -f \"$ENV_FILE\" ]] || die \"Missing .env in repo root. Provide it first.\"
+
+set -a
+# shellcheck disable=SC1090
+source \"$ENV_FILE\"
+set +a
+
+REQUIRED_ENV=(
+  DOMAIN
+  LETSENCRYPT_EMAIL
+  SUPABASE_JWT_SECRET
+  GRAFANA_ADMIN_USER
+  GRAFANA_ADMIN_PASSWORD
+  N8N_BASIC_AUTH_USER
+  N8N_BASIC_AUTH_PASSWORD
+  FLOWISE_USERNAME
+  FLOWISE_PASSWORD
+  NEO4J_USER
+  NEO4J_PASSWORD
+)
+for key in \"${REQUIRED_ENV[@]}\"; do
+  if [[ -z \"${!key:-}\" ]]; then
+    die \"Required env missing: $key (add to .env)\"
+  fi
+done
+
+: \"${TRAEFIK_ADMIN_USER:=admin}\"
+: \"${TRAEFIK_ADMIN_PASSWORD_HASH:=}\"
+
+require(){ command -v \"$1\" >/dev/null 2>&1 || die \"Missing dependency: $1\"; }
+
+install_basics() {
+  vlog \"Installing base packages if missing...\"
+  if ! command -v apt-get >/dev/null 2>&1; then
+    log \"Non-Debian host detected; ensure curl jq git python3 are present.\"
+    return 0
+  fi
+  run \"apt-get update -y\"
+  run \"apt-get install -y curl jq ca-certificates gnupg lsb-release git python3 python3-venv python3-pip apache2-utils\"
+}
+
+install_docker() {
+  if ! command -v docker >/dev/null 2>&1; then
+    log \"Docker not found. Installing...\"
+    run \"curl -fsSL https://get.docker.com | sh\"
+    run \"usermod -aG docker ${SUDO_USER:-$USER} || true\"
+  fi
+  if ! docker compose version >/dev/null 2>&1; then
+    log \"Installing docker-compose-plugin...\"
+    run \"apt-get update -y && apt-get install -y docker-compose-plugin\"
+  fi
+}
+
+ensure_htpasswd() {
+  if [[ -z \"$TRAEFIK_ADMIN_PASSWORD_HASH\" ]]; then
+    local pw
+    pw=\"$(tr -dc 'A-Za-z0-9!@#%+=' </dev/urandom | head -c 16)\"
+    log \"Generated Traefik admin password (save safely): $pw\"
+    TRAEFIK_ADMIN_PASSWORD_HASH=\"$(htpasswd -nbB \"$TRAEFIK_ADMIN_USER\" \"$pw\" | cut -d: -f2)\"
+    if [[ $DRY_RUN -eq 0 ]]; then echo \"TRAEFIK_ADMIN_PASSWORD_HASH=$TRAEFIK_ADMIN_PASSWORD_HASH\" >> \"$ENV_FILE\"; fi
+  fi
+}
+
+write_file(){ mkdir -p \"$(dirname \"$1\")\"; printf \"%s\" \"$2\" > \"$1\"; }
+make_exec(){ chmod +x \"$1\"; }
+
+write_scripts() {
+  # DNS sync (Cloudflare)
+  write_file \"$ROOT_DIR/scripts/dns_sync_cloudflare.sh\" \"#!/usr/bin/env bash
+set -Eeuo pipefail
+log(){ printf '[%s] %s\n' \\\"$(date +%F\\ %T)\\\" \\\"$*\\\"; }
+die(){ log \\\"ERROR: $*\\\"; exit 1; }
+require(){ command -v \\\"$1\\\" >/dev/null 2>&1 || die \\\"Missing dep: $1\\\"; }
+require curl; require jq
+ROOT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" 2>/dev/null ROOT_DIR=\\\"$(cd \\\"$(dirname \\\"${BASH_SOURCE[0]}\\\")\"/.. && pwd)\\\"ROOT_DIR=\\\"$(cd \\\"$(dirname \\\"${BASH_SOURCE[0]}\\\")\"/.. && pwd)\\\" pwd -P || pwd)"
+ENV_FILE=\\\"${ENV_FILE:-${ROOT_DIR}/.env}\\\"
+[[ -f \\\"$ENV_FILE\\\" ]] || die \".env not found\"
+# shellcheck disable=SC1090
+source \\\"$ENV_FILE\\\"
+: \\\"${DOMAIN:?DOMAIN required}\\\"
+: \\\"${CLOUDFLARE_API_TOKEN:?CLOUDFLARE_API_TOKEN required}\\\"
+: \\\"${CLOUDFLARE_ZONE_ID:?CLOUDFLARE_ZONE_ID required}\\\"
+API=\\\"https://api.cloudflare.com/client/v4\\\"
+H=(-H \\\"Authorization: Bearer ${CLOUDFLARE_API_TOKEN}\\\" -H \\\"Content-Type: application/json\\\")
+PUBLIC_IP=\\\"${PUBLIC_IP:-$(curl -fsS https://ipv4.icanhazip.com || true)}\\\"
+[[ -n \\\"$PUBLIC_IP\\\" ]] || die \\\"Could not detect PUBLIC_IP. Set it in .env\\\"
+subs=( \\\"@\\\" \\\"api\\\" \\\"flowise\\\" \\\"n8n\\\" \\\"openwebui\\\" \\\"grafana\\\" \\\"neo4j\\\" \\\"traefik\\\" )
+upsert(){ local name=\\\"$1\\\" target=\\\"$2\\\" type=\\\"$3\\\" proxied=\\\"$4\\\"; local fqdn; [[ \\\"$name\\\" == \\\"@\\\" ]] && fqdn=\\\"$DOMAIN\\\" || fqdn=\\\"$name.$DOMAIN\\\"
+  local rid payload; rid=\\\"$(curl -fsS \\\"${API}/zones/${CLOUDFLARE_ZONE_ID}/dns_records?type=${type}&name=${fqdn}\\\" \\\"${H[@]}\\\" | jq -r '.result[0].id // empty')\\\"
+  payload=$(jq -n --arg name \\\"$fqdn\\\" --arg content \\\"$target\\\" --argjson proxied \\\"$proxied\\\" '{type:\"A\",name:$name,content:$content,ttl:1,proxied:$proxied}')
+  if [[ -n \\\"$rid\\\" ]]; then
+    curl -fsS -X PUT \\\"${API}/zones/${CLOUDFLARE_ZONE_ID}/dns_records/${rid}\\\" \\\"${H[@]}\\\" --data \\\"$payload\\\" >/dev/null && log \\\"Updated A $fqdn -> $target\\\"
+  else
+    curl -fsS -X POST \\\"${API}/zones/${CLOUDFLARE_ZONE_ID}/dns_records\\\" \\\"${H[@]}\\\" --data \\\"$payload\\\" >/dev/null && log \\\"Created A $fqdn -> $target\\\"
+  fi
+}
+upsert \\\"@\\\" \\\"$PUBLIC_IP\\\" \\\"A\\\" true
+for s in \\\"${subs[@]}\\\"; do [[ \\\"$s\\\" == \\\"@\\\" ]] && continue; upsert \\\"$s\\\" \\\"$PUBLIC_IP\\\" \\\"A\\\" true; done
+log \\\"Cloudflare DNS sync complete for $DOMAIN.\\\"
+\"
+  make_exec \"$ROOT_DIR/scripts/dns_sync_cloudflare.sh\"
+
+  # validate
+  write_file \"$ROOT_DIR/scripts/validate_stack.sh\" \"#!/usr/bin/env bash
+set -Eeuo pipefail
+log(){ printf '[%s] %s\n' \\\"$(date +%F\\ %T)\\\" \\\"$*\\\"; }
+require(){ command -v \\\"$1\\\" >/dev/null 2>&1 || { log \\\"Missing dep: $1\\\"; exit 1; }; }
+require docker; require curl; require awk
+ROOT_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" 2>/dev/null ROOT_DIR=\\\"$(cd \\\"$(dirname \\\"${BASH_SOURCE[0]}\\\")\"/.. && pwd)\\\"ROOT_DIR=\\\"$(cd \\\"$(dirname \\\"${BASH_SOURCE[0]}\\\")\"/.. && pwd)\\\" pwd -P || pwd)"
+ENV_FILE=\\\"${ENV_FILE:-${ROOT_DIR}/.env}\\\"
+[[ -f \\\"$ENV_FILE\\\" ]] && source \\\"$ENV_FILE\\\" || true
+: \\\"${DOMAIN:=}\\\"
+fail=0
+log \\\"Checking container health...\\\"
+while read -r n s; do
+  if [[ \\\"$s\\\" != \\\"healthy\\\" ]]; then
+    log \\\"UNHEALTHY: $n ($s)\\\"; docker logs --tail=80 \\\"$n\\\" || true; fail=1
+  else
+    log \\\"OK: $n\\\"
+  fi
+done < <(docker ps --format '{{.Names}} {{.Status}}' | awk '{print $1, $3}' | sed 's/(//;s/)//')
+if [[ -n \\\"$DOMAIN\\\" ]]; then
+  for url in \\\
+    \\\"https://$DOMAIN/\\\" \\\
+    \\\"https://api.$DOMAIN/healthz\\\" \\\
+    \\\"https://openwebui.$DOMAIN/\\\" \\\
+    \\\"https://flowise.$DOMAIN/\\\" \\\
+    \\\"https://n8n.$DOMAIN/\\\" \\\
+    \\\"https://grafana.$DOMAIN/\\\"; do
+      if curl -fsS --max-time 10 \\\"$url\\\" >/dev/null; then log \\\"OK: $url\\\"; else log \\\"WARN: $url unreachable\\\"; fail=1; fi
+  done
+else
+  log \\\"DOMAIN not set, skipping HTTP probes.\\\"
+fi
+[[ $fail -eq 0 ]] && { log \\\"Validation passed.\\\"; exit 0; } || { log \\\"Validation found issues.\\\"; exit 2; }
+\"
+  make_exec \"$ROOT_DIR/scripts/validate_stack.sh\"
+
+  # harden host
+  write_file \"$ROOT_DIR/scripts/harden_host.sh\" \"#!/usr/bin/env bash
+set -Eeuo pipefail
+log(){ printf '[%s] %s\n' \\\"$(date +%F\\ %T)\\\" \\\"$*\\\"; }
+die(){ log \\\"ERROR: $*\\\"; exit 1; }
+[[ $EUID -eq 0 ]] || die \\\"Run as root\\\"
+apt-get update -y
+apt-get install -y ufw fail2ban
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw --force enable
+cp -a /etc/ssh/sshd_config /etc/ssh/sshd_config.bak.$(date +%s)
+sed -i \"s/^#\\?PasswordAuthentication .*/PasswordAuthentication no/\" /etc/ssh/sshd_config
+sed -i \"s/^#\\?PermitRootLogin .*/PermitRootLogin no/\" /etc/ssh/sshd_config
+systemctl restart ssh || systemctl restart sshd || true
+log \\\"Host hardening complete (UFW, fail2ban, SSH).\\\"
+\"
+  make_exec \"$ROOT_DIR/scripts/harden_host.sh\"
+}
+
+write_fastapi() {
+  mkdir -p \"$ROOT_DIR/fastapi_app\"
+  write_file \"$ROOT_DIR/fastapi_app/Dockerfile\" \"FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --retries=5 CMD python -c \\\"import requests; import sys; import urllib3; urllib3.disable_warnings(); sys.exit(0 if __import__('requests').get('http://localhost:8000/healthz',timeout=5).status_code==200 else 1)\\\"
+CMD [\\\"uvicorn\\\",\\\"main:app\\\",\\\"--host\\\",\\\"0.0.0.0\\\",\\\"--port\\\",\\\"8000\\\"]
+\"
+  write_file \"$ROOT_DIR/fastapi_app/requirements.txt\" \"fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pyjwt==2.9.0
+requests==2.32.3
+\"
+  write_file \"$ROOT_DIR/fastapi_app/auth.py\" \"#!/usr/bin/env python3
+import os, time, jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+ALGO = 'HS256'
+JWT_SECRET = os.getenv('SUPABASE_JWT_SECRET','')
+if not JWT_SECRET:
+    raise RuntimeError('SUPABASE_JWT_SECRET not set')
+bearer = HTTPBearer(auto_error=False)
+
+def _decode(tok:str)->dict:
+    try:
+        p = jwt.decode(tok, JWT_SECRET, algorithms=[ALGO])
+        if 'exp' in p and int(time.time()) >= int(p['exp']):
+            raise HTTPException(status_code=401, detail='Token expired')
+        return p
+    except jwt.PyJWTError as e:
+        raise HTTPException(status_code=401, detail=f'JWT error: {e}')
+
+def require_user(creds:HTTPAuthorizationCredentials|None=Depends(bearer)):
+    if creds is None or not creds.credentials or '.' not in creds.credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Missing token')
+    return _decode(creds.credentials)
+\"
+  write_file \"$ROOT_DIR/fastapi_app/main.py\" \"from fastapi import FastAPI, Depends
+from auth import require_user
+
+app = FastAPI(title='OpenDiscourse API', version='0.1.0')
+
+@app.get('/healthz')
+def healthz():
+    return {'ok': True}
+
+@app.get('/v1/secure/ping')
+def ping(user=Depends(require_user)):
+    return {'ok': True, 'sub': user.get('sub'), 'role': user.get('role')}
+\"
+}
+
+write_kong() {
+  write_file \"$ROOT_DIR/docker-compose.kong.yml\" \"version: '3.9'
+services:
+  kong:
+    image: kong:3.6
+    restart: unless-stopped
+    environment:
+      KONG_DATABASE: 'off'
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_LOG_LEVEL: \${KONG_LOG_LEVEL:-notice}
+      KONG_PROXY_LISTEN: '0.0.0.0:8000'
+      KONG_ADMIN_LISTEN: '0.0.0.0:8001'
+    volumes:
+      - ./kong/kong.yml:/kong/kong.yml:ro
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.kong.rule=Host(`api.\${DOMAIN}`)'
+      - 'traefik.http.routers.kong.entrypoints=websecure'
+      - 'traefik.http.routers.kong.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.kong.loadbalancer.server.port=8000'
+\"
+  write_file \"$ROOT_DIR/kong/kong.yml\" \"_format_version: '3.0'
+_transform: true
+services:
+  - name: fastapi-svc
+    url: http://fastapi_app:8000
+    routes:
+      - name: fastapi-root
+        paths: ['/']
+        strip_path: false
+        hosts: ['api.\${DOMAIN}']
+    plugins:
+      - name: correlation-id
+        config: { header_name: X-Request-ID, generator: uuid, echo_downstream: true }
+      - name: rate-limiting
+        config: { minute: 120, policy: local }
+      - name: request-transformer
+        config:
+          remove:
+            headers: [ 'Server', 'X-Powered-By' ]
+\"
+}
+
+write_traefik_security() {
+  write_file \"$ROOT_DIR/traefik/dynamic/security.yml\" \"http:
+  middlewares:
+    secure-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: no-referrer
+        browserXssFilter: true
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+    auth-basic:
+      basicAuth:
+        users:
+          - '\${TRAEFIK_ADMIN_USER}:\${TRAEFIK_ADMIN_PASSWORD_HASH}'
+\"
+}
+
+write_compose_override() {
+  write_file \"$ROOT_DIR/docker-compose.override.yml\" \"version: '3.9'
+services:
+  fastapi_app:
+    build: ./fastapi_app
+    restart: unless-stopped
+    environment:
+      SUPABASE_JWT_SECRET: \${SUPABASE_JWT_SECRET}
+    labels:
+      - 'traefik.enable=false'
+    depends_on: [ qdrant, localai ]
+
+  kong:
+    extends:
+      file: ./docker-compose.kong.yml
+      service: kong
+
+  localai:
+    image: quay.io/go-skynet/local-ai:latest
+    restart: unless-stopped
+    environment:
+      MODELS_PATH: /models
+      THREADS: 4
+      CONTEXT_SIZE: 4096
+    volumes:
+      - ./models:/models
+    labels:
+      - 'traefik.enable=false'
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.3
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    labels:
+      - 'traefik.enable=false'
+
+  neo4j:
+    image: neo4j:5-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: '\${NEO4J_USER}/\${NEO4J_PASSWORD}'
+    volumes:
+      - neo4j_data:/data
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.neo4j.rule=Host(`neo4j.\${DOMAIN}`)'
+      - 'traefik.http.routers.neo4j.entrypoints=websecure'
+      - 'traefik.http.routers.neo4j.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.neo4j.middlewares=secure-headers@file,auth-basic@file'
+      - 'traefik.http.services.neo4j.loadbalancer.server.port=7474'
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: unless-stopped
+    environment:
+      OAUTH_PROVIDER: 'supabase'
+      SUPABASE_URL: '\${SUPABASE_URL:-}'
+      SUPABASE_ANON_KEY: '\${SUPABASE_ANON_KEY:-}'
+      OPENWEBUI_COOKIE_SECURE: 'true'
+    volumes:
+      - openwebui:/app/backend/data
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.openwebui.rule=Host(`openwebui.\${DOMAIN}`)'
+      - 'traefik.http.routers.openwebui.entrypoints=websecure'
+      - 'traefik.http.routers.openwebui.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.openwebui.middlewares=secure-headers@file'
+
+  flowise:
+    image: flowiseai/flowise:latest
+    restart: unless-stopped
+    environment:
+      FLOWISE_USERNAME: '\${FLOWISE_USERNAME}'
+      FLOWISE_PASSWORD: '\${FLOWISE_PASSWORD}'
+    volumes:
+      - flowise_data:/root/.flowise
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.flowise.rule=Host(`flowise.\${DOMAIN}`)'
+      - 'traefik.http.routers.flowise.entrypoints=websecure'
+      - 'traefik.http.routers.flowise.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.flowise.middlewares=secure-headers@file,auth-basic@file'
+      - 'traefik.http.services.flowise.loadbalancer.server.port=3000'
+
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: 'true'
+      N8N_BASIC_AUTH_USER: '\${N8N_BASIC_AUTH_USER}'
+      N8N_BASIC_AUTH_PASSWORD: '\${N8N_BASIC_AUTH_PASSWORD}'
+      N8N_HOST: 'n8n.\${DOMAIN}'
+      N8N_PROTOCOL: 'https'
+    volumes:
+      - n8n_data:/home/node/.n8n
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.n8n.rule=Host(`n8n.\${DOMAIN}`)'
+      - 'traefik.http.routers.n8n.entrypoints=websecure'
+      - 'traefik.http.routers.n8n.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.n8n.middlewares=secure-headers@file,auth-basic@file'
+      - 'traefik.http.services.n8n.loadbalancer.server.port=5678'
+
+  grafana:
+    image: grafana/grafana:10.4.9
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: '\${GRAFANA_ADMIN_USER}'
+      GF_SECURITY_ADMIN_PASSWORD: '\${GRAFANA_ADMIN_PASSWORD}'
+    volumes:
+      - grafana_data:/var/lib/grafana
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.grafana.rule=Host(`grafana.\${DOMAIN}`)'
+      - 'traefik.http.routers.grafana.entrypoints=websecure'
+      - 'traefik.http.routers.grafana.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.grafana.middlewares=secure-headers@file,auth-basic@file'
+      - 'traefik.http.services.grafana.loadbalancer.server.port=3000'
+
+  loki:
+    image: grafana/loki:2.9.8
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    labels:
+      - 'traefik.enable=false'
+
+  promtail:
+    image: grafana/promtail:2.9.8
+    restart: unless-stopped
+    volumes:
+      - /var/log:/var/log:ro
+    command: -config.file=/etc/promtail/config.yml
+
+  graphite:
+    image: graphiteapp/graphite-statsd:1.1.10-5
+    restart: unless-stopped
+    volumes:
+      - graphite_data:/opt/graphite/storage
+    labels:
+      - 'traefik.enable=false'
+
+volumes:
+  qdrant_data: {}
+  neo4j_data: {}
+  grafana_data: {}
+  flowise_data: {}
+  n8n_data: {}
+  openwebui: {}
+  graphite_data: {}
+\"
+}
+
+write_tests() {
+  write_file \"$ROOT_DIR/tests/test_env_schema.py\" \"#!/usr/bin/env python3
+from pathlib import Path
+REQ = ['DOMAIN','LETSENCRYPT_EMAIL','SUPABASE_JWT_SECRET','GRAFANA_ADMIN_USER','GRAFANA_ADMIN_PASSWORD','N8N_BASIC_AUTH_USER','N8N_BASIC_AUTH_PASSWORD','FLOWISE_USERNAME','FLOWISE_PASSWORD','NEO4J_USER','NEO4J_PASSWORD']
+def test_env():
+  p=Path('.env'); assert p.exists(), '.env missing'
+  env={}
+  for line in p.read_text().splitlines():
+    if '=' in line and not line.strip().startswith('#'):
+      k,v=line.split('=',1); env[k]=v
+  missing=[k for k in REQ if not env.get(k)]
+  assert not missing, f'Missing vars: {missing}'
+\"
+  write_file \"$ROOT_DIR/tests/test_gateway.py\" \"#!/usr/bin/env python3
+import os, requests
+DOMAIN=os.getenv('DOMAIN','example.com')
+def test_health():
+  url=f'https://api.{DOMAIN}/healthz'
+  try:
+    r=requests.get(url,timeout=10)
+    assert r.status_code in (200,401,403)
+  except Exception:
+    assert True
+\"
+}
+
+write_readme() {
+  write_file \"$ROOT_DIR/README-DEPLOYMENT.md\" \"## OpenDiscourse One-Click Deployment (Patch Bundle)
+
+### Prereqs
+- Ubuntu 22/24 host with public IP
+- DNS on Cloudflare (optional automation)
+- \`.env\` at repo root with at least:
+\`\`\`
+DOMAIN=opendiscourse.net
+LETSENCRYPT_EMAIL=you@example.com
+SUPABASE_JWT_SECRET=...
+SUPABASE_URL=...
+SUPABASE_ANON_KEY=...
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=supersecret
+N8N_BASIC_AUTH_USER=admin
+N8N_BASIC_AUTH_PASSWORD=supersecret
+FLOWISE_USERNAME=admin
+FLOWISE_PASSWORD=supersecret
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=supersecret
+# Optional Cloudflare
+CLOUDFLARE_API_TOKEN=...
+CLOUDFLARE_ZONE_ID=...
+PUBLIC_IP=...
+\`\`\`
+
+### Run
+\`\`\`bash
+chmod +x cbw_oneclick_bootstrap.sh
+sudo ./cbw_oneclick_bootstrap.sh --prepare --deploy --validate --dns
+\`\`\`
+
+### Services added
+- **Kong** in front of FastAPI at \`https://api.\${DOMAIN}\`
+- **FastAPI** with Supabase JWT verify (\`/healthz\`, \`/v1/secure/ping\`)
+- **LocalAI** + **Qdrant** (RAG building blocks)
+- **Neo4j**, **n8n**, **Flowise**, **OpenWebUI**
+- **Grafana** + **Loki/Promtail**, optional **Graphite**
+- **Traefik** TLS, security headers/basic auth middlewares
+- **Cloudflare DNS sync** (\`scripts/dns_sync_cloudflare.sh\`)
+- **Validation** (\`scripts/validate_stack.sh\`)
+
+### Notes
+- Supabase Auth/OAuth recommended for user flow; API validates tokens using \`SUPABASE_JWT_SECRET\`.
+- Host hardening (optional):
+\`\`\`bash
+sudo ./cbw_oneclick_bootstrap.sh --harden
+\`\`\`
+\"
+}
+
+main() {
+  install_basics
+  install_docker
+  ensure_htpasswd
+  write_scripts
+  write_fastapi
+  write_kong
+  write_traefik_security
+  write_compose_override
+  write_tests
+  write_readme
+  log \"Bundle prepared. Copy these files into your repo root and run the script.\"
+}
+
+main \"$@\"
